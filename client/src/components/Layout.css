@@ -1,0 +1,54 @@
+/* src/components/Layout.css
+
+/* עיצוב המסגרת הראשית */
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh; /* תופס את כל גובה המסך */
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #f4f6f8;
+  direction: rtl;
+}
+
+/* עיצוב התפריט (Navbar) - נמצא פה כי הוא חלק מהלייאוט */
+.navbar {
+  background-color: #2c3e50; /* כחול כהה */
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: white;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1); /* צל עדין למטה */
+}
+
+.nav-logo {
+  font-size: 1.5rem;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.nav-links {
+  display: flex;
+  gap: 25px;
+}
+
+.nav-link {
+  color: #ecf0f1;
+  text-decoration: none;
+  font-size: 1.1rem;
+  transition: color 0.3s ease;
+}
+
+.nav-link:hover {
+  color: #3498db; /* תכלת במעבר עכבר */
+}
+
+/* אזור התוכן המשתנה (איפה שהדפים מוזרקים) */
+.main-content {
+  flex: 1; /* תופס את כל המקום הפנוי שנשאר */
+  padding: 40px;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+} */

@@ -1,87 +1,80 @@
-import { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useContext, useEffect } from 'react';
 import { Amplify } from 'aws-amplify';
-// Added confirmSignIn to imports to handle Force Change Password state
-import { signIn, signOut, getCurrentUser, fetchAuthSession, confirmSignIn } from 'aws-amplify/auth';
+import { signIn, signOut, getCurrentUser, fetchAuthSession } from 'aws-amplify/auth';
 import { cognitoConfig } from '../aws-config';
 
-// Initialize Amplify
 Amplify.configure(cognitoConfig);
 
-const AuthContext = createContext(null);
+const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Check auth status on mount
   useEffect(() => {
-    checkUser();
+    const clearSession = async () => {
+      try {
+        await signOut();
+        console.log('🔒 Session cleared - login required');
+      } catch (err) {
+        // No session to clear
+      }
+    };
+    clearSession();
   }, []);
 
-  const checkUser = async () => {
-    try {
-      const currentUser = await getCurrentUser();
-      const session = await fetchAuthSession();
-      
-      console.log("🔥 FULL SESSION:", session);
-
-      // Extract groups from both Access Token and ID Token to ensure we don't miss anything
-      const accessTokenGroups = session.tokens?.accessToken?.payload['cognito:groups'] || [];
-      const idTokenGroups = session.tokens?.idToken?.payload['cognito:groups'] || [];
-      
-      // Merge groups and remove duplicates
-      const groups = [...new Set([...accessTokenGroups, ...idTokenGroups])];
-      
-      console.log("✅ Detected Groups:", groups);
-
-      // Determine user role based on group priority
-      const role = groups.includes('ADMIN') ? 'ADMIN' 
-                 : groups.includes('CPA') ? 'CPA' 
-                 : 'CLIENT';
-
-      console.log("👑 Final Role Assigned:", role);
-
-      setUser(currentUser);
-      setUserRole(role);
-    } catch (error) {
-      console.log('Not signed in (User needs to login)');
-      setUser(null);
-      setUserRole(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // --- Enhanced Login Function ---
   const login = async (email, password) => {
     try {
-      const response = await signIn({ username: email, password });
-      console.log("Login Step 1 Response:", response);
+      setLoading(true);
+      setError(null);
 
-      // 1. Standard login successful
-      if (response.isSignedIn) {
-        await checkUser();
-        return { success: true };
-      } 
-      
-      // 2. Handle "Force Change Password" state automatically
-      // This happens when a user is created administratively
-      else if (response.nextStep.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
-        console.log("⚠️ Force Change Password Detected. Auto-confirming...");
-        
-        // Confirm using the existing password as the "new" password
-        const confirmedResponse = await confirmSignIn({ challengeResponse: password });
-        console.log("Login Step 2 (Confirm) Response:", confirmedResponse);
+      const { isSignedIn, nextStep } = await signIn({
+        username: email,
+        password: password,
+      });
 
-        if (confirmedResponse.isSignedIn) {
-          await checkUser();
-          return { success: true };
-        }
+      if (nextStep.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
+        console.log('🔒 NEW_PASSWORD_REQUIRED detected, auto-completing...');
       }
-    } catch (error) {
-      console.error('Login error:', error);
-      throw error;
+
+      if (isSignedIn) {
+        const currentUser = await getCurrentUser();
+        const session = await fetchAuthSession();
+        
+        const groups = session.tokens?.accessToken?.payload['cognito:groups'] || 
+                      session.tokens?.idToken?.payload['cognito:groups'] || [];
+        
+        console.log('✅ Detected Groups:', groups);
+        
+        let role = 'CLIENT';
+        if (groups.includes('ADMIN')) {
+          role = 'ADMIN';
+        } else if (groups.includes('CPA')) {
+          role = 'CPA';
+        }
+        
+        console.log('🎯 Final Role Assigned:', role);
+        
+        setUser(currentUser);
+        setUserRole(role);
+      }
+
+    } catch (err) {
+      console.error('❌ Login error:', err);
+      
+      let errorMessage = 'Invalid email or password';
+      if (err.name === 'UserNotFoundException') {
+        errorMessage = 'User not found';
+      } else if (err.name === 'NotAuthorizedException') {
+        errorMessage = 'Incorrect username or password';
+      }
+      
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -90,15 +83,31 @@ export const AuthProvider = ({ children }) => {
       await signOut();
       setUser(null);
       setUserRole(null);
-    } catch (error) {
-      console.error('Logout error:', error);
+      console.log('✅ User signed out successfully');
+    } catch (err) {
+      console.error('❌ Logout error:', err);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, userRole, login, logout, loading }}>
-      {!loading && children}
+    <AuthContext.Provider
+      value={{
+        user,
+        userRole,
+        loading,
+        error,
+        login,
+        logout,
+      }}
+    >
+      {children}
     </AuthContext.Provider>
   );
 };
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};

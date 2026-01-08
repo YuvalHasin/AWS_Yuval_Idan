@@ -17,7 +17,6 @@ export const handler = async (event) => {
   try {
     const { name, email, password, userType } = JSON.parse(event.body);
     
-    // Validate input
     if (!name || !email || !password || !userType) {
       return {
         statusCode: 400,
@@ -29,18 +28,19 @@ export const handler = async (event) => {
       };
     }
 
-    if (!['CLIENT', 'CPA'].includes(userType)) {
+    //  Allow ADMIN (so existing ADMIN can create more ADMINs)
+    if (!['CLIENT', 'CPA', 'ADMIN'].includes(userType)) {
       return {
         statusCode: 400,
         headers: { 'Access-Control-Allow-Origin': '*' },
         body: JSON.stringify({
           success: false,
-          message: 'Invalid user type',
+          message: 'Invalid user type. Must be CLIENT, CPA, or ADMIN',
         }),
       };
     }
 
-    // Step 1: Create user in Cognito
+    //  Create user in Cognito
     const createUserParams = {
       UserPoolId: process.env.USER_POOL_ID,
       Username: email,
@@ -49,6 +49,7 @@ export const handler = async (event) => {
         { Name: 'email', Value: email },
         { Name: 'email_verified', Value: 'true' },
         { Name: 'name', Value: name },
+        { Name: 'custom:userType', Value: userType }, //  Critical for DashboardRouter
       ],
       MessageAction: 'SUPPRESS',
     };
@@ -58,7 +59,7 @@ export const handler = async (event) => {
     
     console.log('User created in Cognito:', userId);
 
-    // Step 2: Set permanent password
+    //  Set permanent password
     await cognitoClient.send(new AdminSetUserPasswordCommand({
       UserPoolId: process.env.USER_POOL_ID,
       Username: userId,
@@ -68,7 +69,7 @@ export const handler = async (event) => {
 
     console.log('Password set as permanent');
 
-    // Step 3: Add user to appropriate group
+    //  Add user to appropriate group
     await cognitoClient.send(new AdminAddUserToGroupCommand({
       UserPoolId: process.env.USER_POOL_ID,
       Username: userId,
@@ -77,14 +78,14 @@ export const handler = async (event) => {
 
     console.log(`User added to ${userType} group`);
 
-    // Step 4: If CLIENT, auto-assign to CPA (round-robin)
+    //  If CLIENT, auto-assign to CPA
     let assignedCPA = null;
     if (userType === 'CLIENT') {
       assignedCPA = await assignCPARoundRobin();
       console.log('Assigned CPA:', assignedCPA);
     }
 
-    // Step 5: Save user metadata to DynamoDB
+    //  Save user metadata to DynamoDB
     const timestamp = new Date().toISOString();
     await docClient.send(new PutCommand({
       TableName: process.env.USERS_TABLE,
@@ -102,7 +103,7 @@ export const handler = async (event) => {
 
     console.log('User metadata saved to DynamoDB');
 
-    // Step 6: If this is a CPA, initialize their client count
+    //  If CPA, initialize client count
     if (userType === 'CPA') {
       await docClient.send(new UpdateCommand({
         TableName: process.env.USERS_TABLE,
@@ -112,7 +113,7 @@ export const handler = async (event) => {
       }));
     }
 
-    // Step 7: If CLIENT was assigned a CPA, increment CPA's client count
+    //  Increment CPA's client count if assigned
     if (assignedCPA) {
       await docClient.send(new UpdateCommand({
         TableName: process.env.USERS_TABLE,
@@ -127,7 +128,7 @@ export const handler = async (event) => {
       headers: { 'Access-Control-Allow-Origin': '*' },
       body: JSON.stringify({
         success: true,
-        message: 'Registration successful',
+        message: 'User created successfully',
         userId,
         userType,
         assignedCPA,
@@ -157,10 +158,8 @@ export const handler = async (event) => {
   }
 };
 
-// Helper: Assign CLIENT to CPA using round-robin (least clients)
 async function assignCPARoundRobin() {
   try {
-    // Get all CPAs
     const result = await docClient.send(new ScanCommand({
       TableName: process.env.USERS_TABLE,
       FilterExpression: 'userType = :cpa AND #status = :active',
@@ -173,7 +172,6 @@ async function assignCPARoundRobin() {
       return null;
     }
 
-    // Find CPA with least clients
     const cpaWithLeastClients = result.Items.reduce((prev, curr) => 
       (curr.clientCount || 0) < (prev.clientCount || 0) ? curr : prev
     );

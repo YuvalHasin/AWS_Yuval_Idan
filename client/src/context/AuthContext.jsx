@@ -10,20 +10,55 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // checking session on mount
   const [error, setError] = useState(null);
 
+  // Check if user is already logged in (on page refresh)
   useEffect(() => {
-    const clearSession = async () => {
+    const checkAuthState = async () => {
       try {
-        await signOut();
-        console.log('🔒 Session cleared - login required');
+        setLoading(true);
+        
+        // Try to get current user from existing session
+        const currentUser = await getCurrentUser();
+        const session = await fetchAuthSession();
+        
+        if (currentUser && session.tokens) {
+          // User is already logged in!
+          const groups = session.tokens?.accessToken?.payload['cognito:groups'] || 
+                        session.tokens?.idToken?.payload['cognito:groups'] || [];
+          
+          console.log('✅ Session restored. Detected Groups:', groups);
+          
+          let role = 'CLIENT';
+          if (groups.includes('ADMIN')) {
+            role = 'ADMIN';
+          } else if (groups.includes('CPA')) {
+            role = 'CPA';
+          }
+          
+          console.log('🎯 Restored Role:', role);
+          
+          setUser(currentUser);
+          setUserRole(role);
+        } else {
+          // No valid session
+          console.log('ℹ️ No active session found');
+          setUser(null);
+          setUserRole(null);
+        }
       } catch (err) {
-        // No session to clear
+        // User is not logged in
+        console.log('ℹ️ User not authenticated');
+        setUser(null);
+        setUserRole(null);
+      } finally {
+        setLoading(false);
       }
     };
-    clearSession();
-  }, []);
+
+    checkAuthState();
+  }, []); // Runs once on mount
 
   const login = async (email, password) => {
     try {

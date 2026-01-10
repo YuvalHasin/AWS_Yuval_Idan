@@ -27,6 +27,8 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import { BarChart as MuiBarChart } from '@mui/x-charts/BarChart';
+import { PieChart as MuiPieChart } from '@mui/x-charts/PieChart';
 
 const ClientDashboard = () => {
   const GET_API_URL = "https://0wvwt8s2u8.execute-api.us-east-1.amazonaws.com/dev/invoices";
@@ -116,6 +118,47 @@ const ClientDashboard = () => {
     </Card>
   );
 
+  // עיבוד נתונים לגרף עמודות (הכנסות מול הוצאות)
+const chartData = invoices.reduce((acc, inv) => {
+  // וידוא שהתאריך תקין
+  const date = new Date(inv.uploadTime);
+  const month = isNaN(date.getTime()) ? 'לא ידוע' : date.toLocaleString('he-IL', { month: 'short' });
+  
+  let existingMonth = acc.find(item => item.name === month);
+  if (!existingMonth) {
+    existingMonth = { name: month, הכנסות: 0, הוצאות: 0 };
+    acc.push(existingMonth);
+  }
+  
+  // המרה מפורשת למספר כדי למנוע NaN
+  const amount = Number(inv.amount) || 0;
+  
+  if (inv.type === 'INCOME') {
+    existingMonth.הכנסות += amount;
+  } else {
+    existingMonth.הוצאות += amount;
+  }
+  return acc;
+}, []).reverse();
+
+  // עיבוד נתונים לגרף עוגה (הוצאות לפי קטגוריה)
+const categoryData = invoices
+  .filter(inv => inv.type !== 'INCOME')
+  .reduce((acc, inv) => {
+    const cat = inv.category || 'כללי';
+    // המרה מפורשת למספר
+    const amount = Number(inv.amount) || 0;
+    
+    const existing = acc.find(item => item.name === cat);
+    if (existing) {
+      existing.value += amount;
+    } else {
+      acc.push({ name: cat, value: amount });
+    }
+    return acc;
+  }, []);
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+
   return (
     <Box
       sx={{
@@ -179,7 +222,7 @@ const ClientDashboard = () => {
       {/* Stats Grid */}
       <Box sx={{ px: { xs: 2, sm: 3, md: 4 }, mb: 4, width: '100%' }}>
         <Grid container spacing={3}>
-          <Grid item xs={12} sm={6} md={4} lg={3}>
+          <Grid size = {{ xs: 12, sm: 6, md: 4, lg: 3}}>
             <StatCard
               title="סה״כ הוצאות"
               value={expenses}
@@ -190,7 +233,7 @@ const ClientDashboard = () => {
             />
           </Grid>
 
-          <Grid item xs={12} sm={6} md={4} lg={3}>
+          <Grid size= {{ xs: 12, sm: 6, md: 4, lg: 3}}>
             <StatCard
               title="סה״כ הכנסות"
               value={incomes}
@@ -201,7 +244,7 @@ const ClientDashboard = () => {
             />
           </Grid>
 
-          <Grid item xs={12} sm={6} md={4} lg={3}>
+          <Grid size= {{ xs: 12, sm: 6, md: 4, lg: 3}}>
             <StatCard
               title="רווח נקי"
               value={netProfit}
@@ -212,7 +255,7 @@ const ClientDashboard = () => {
             />
           </Grid>
 
-          <Grid item xs={12} sm={6} md={4} lg={3}>
+          <Grid size= {{ xs: 12, sm: 6, md: 4, lg: 3}}>
             <StatCard
               title="ההעלאה האחרונה"
               value={invoices.length}
@@ -225,55 +268,88 @@ const ClientDashboard = () => {
       </Box>
 
       {/* Charts Section */}
-      <Box sx={{ px: { xs: 2, sm: 3, md: 4 }, mb: 4, width: '100%' }}>
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Card
-              sx={{
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
-                border: `1px solid rgba(145, 158, 171, 0.2)`,
-                height: '100%',
-              }}
-            >
-              <Box sx={{ p: 3, borderBottom: '1px solid #e5e7eb' }}>
-                <Typography variant="h6" sx={{ fontWeight: 700, color: '#1a202c' }}>
-                  הוצאות vs הכנסות
-                </Typography>
+      <Grid container spacing={3} sx={{ mt: 1 }}>
+        
+        {/* גרף עמודות - הכנסות מול הוצאות */}
+        <Grid size={{ xs: 12, md: 8 }}>
+          <Card elevation={2}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                הכנסות מול הוצאות (לפי חודש)
+              </Typography>
+              <Box sx={{ height: 350, width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                {chartData && chartData.length > 0 ? (
+                  <MuiBarChart
+                    dataset={chartData}
+                    xAxis={[{ 
+                      scaleType: 'band', 
+                      dataKey: 'name',
+                      label: 'חודש'
+                    }]}
+                    series={[
+                      { dataKey: 'הכנסות', label: 'הכנסות', color: '#22c55e' },
+                      { dataKey: 'הוצאות', label: 'הוצאות', color: '#ef4444' },
+                    ]}
+                    margin={{ top: 50, right: 30, left: 40, bottom: 50 }}
+                    slotProps={{ 
+                      legend: { 
+                        direction: 'row', 
+                        position: { vertical: 'top', horizontal: 'middle' },
+                        padding: 10
+                      } 
+                    }}
+                  />
+                ) : (
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography color="text.secondary">טוען נתונים לגרף עמודות...</Typography>
+                  </Box>
+                )}
               </Box>
-              <CardContent>
-                <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Typography sx={{ color: 'text.secondary' }}>
-                    📊 תרשים יוצג כאן (בהכנה)
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} md={4}>
-            <Card
-              sx={{
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
-                border: `1px solid rgba(145, 158, 171, 0.2)`,
-                height: '100%',
-              }}
-            >
-              <Box sx={{ p: 3, borderBottom: '1px solid #e5e7eb' }}>
-                <Typography variant="h6" sx={{ fontWeight: 700, color: '#1a202c' }}>
-                  סיכום לפי קטגוריה
-                </Typography>
-              </Box>
-              <CardContent>
-                <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Typography sx={{ color: 'text.secondary' }}>
-                    🥧 תרשים עוגה יוצג כאן (בהכנה)
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
+            </CardContent>
+          </Card>
         </Grid>
-      </Box>
+
+        {/* גרף עוגה - הוצאות לפי קטגוריה */}
+        <Grid size={{ xs: 12, md: 4 }}>
+          <Card elevation={2}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                התפלגות הוצאות
+              </Typography>
+              <Box sx={{ height: 350, width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                {categoryData && categoryData.length > 0 ? (
+                  <MuiPieChart
+                    series={[
+                      {
+                        data: categoryData.map((item, id) => ({
+                          id,
+                          value: item.value,
+                          label: item.name,
+                        })),
+                        innerRadius: 60,
+                        outerRadius: 100,
+                        paddingAngle: 5,
+                        cornerRadius: 5,
+                      },
+                    ]}
+                    slotProps={{ 
+                      legend: { 
+                        position: { vertical: 'bottom', horizontal: 'middle' },
+                        labelStyle: { fontSize: 12 }
+                      } 
+                    }}
+                  />
+                ) : (
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography color="text.secondary">אין נתוני הוצאות להצגה</Typography>
+                  </Box>
+                )}
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+     
 
       {/* Table Section */}
       <Box sx={{ px: { xs: 2, sm: 3, md: 4 }, pb: { xs: 2, sm: 3, md: 4 }, width: '100%', flexGrow: 1 }}>

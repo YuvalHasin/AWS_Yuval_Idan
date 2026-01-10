@@ -5,6 +5,7 @@ import Register from './pages/Register';
 import UploadPage from './pages/UploadPage';
 import DashboardRouter from './components/DashboardRouter';
 import LandingPage from './pages/LandingPage';
+import ReportsPage from './components/ReportsPage'; 
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<DashboardRouter />} />
         <Route path="/upload" element={<UploadPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
       </Route>
     </Routes>
   );

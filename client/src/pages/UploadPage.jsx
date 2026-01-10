@@ -1,11 +1,25 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { 
+  FormControl, 
+  InputLabel, 
+  Select, 
+  MenuItem, 
+  Radio, 
+  RadioGroup, 
+  FormControlLabel, 
+  Typography 
+} from '@mui/material';
 
 const UploadPage = () => {
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const navigate = useNavigate();
+  const [invoiceType, setInvoiceType] = useState('EXPENSE'); // הגדרת ברירת מחדל כהוצאה
+  const [category, setCategory] = useState('משרדי');
+
+  const categories = ['משרדי', 'דלק', 'חשמל', 'מזון', 'שיווק', 'אחר'];
 
   // הכתובת שלך ללמבדה
   const UPLOAD_LAMBDA_URL = "https://0wvwt8s2u8.execute-api.us-east-1.amazonaws.com/dev/upload";
@@ -41,11 +55,13 @@ const UploadPage = () => {
 
       console.log("2. שולח את הקובץ ללמבדה...");
       
-      // שליחת הכל במכה אחת: משתמש, שם קובץ, והקובץ עצמו
+      // הוספת השדות החדשים כאן בתוך האובייקט
       const response = await axios.post(UPLOAD_LAMBDA_URL, {
         userId: "test_user_1", 
         fileName: file.name,
-        fileContent: fileContentBase64 
+        fileContent: fileContentBase64,
+        invoiceType: invoiceType, // שולח 'INCOME' או 'EXPENSE'
+        category: category        // שולח 'דלק', 'חשמל' וכו'
       });
 
       console.log("3. תשובה מהשרת:", response.data);
@@ -55,7 +71,6 @@ const UploadPage = () => {
 
     } catch (error) {
       console.error("שגיאה בהעלאה:", error);
-      // אם יש הודעת שגיאה מפורטת מהשרת, נציג אותה
       if (error.response && error.response.data && error.response.data.body) {
          alert("שגיאה מהשרת: " + error.response.data.body);
       } else {
@@ -65,12 +80,35 @@ const UploadPage = () => {
       setUploading(false);
     }
   };
-
   return (
     <div className="page-content" style={{ textAlign: 'center', marginTop: '50px' }}>
       <h2>העלאת חשבונית חדשה 🧾</h2>
       <input type="file" onChange={handleFileChange} style={{ margin: '20px' }} />
       <br />
+      {/* הוספת בחירת סוג מעל כפתור ההעלאה */}
+      <div style={{ marginBottom: '20px', textAlign: 'right', direction: 'rtl' }}>
+        <Typography variant="h6">סוג המסמך:</Typography>
+        <RadioGroup 
+          row 
+          value={invoiceType} 
+          onChange={(e) => setInvoiceType(e.target.value)}
+        >
+          <FormControlLabel value="EXPENSE" control={<Radio />} label="הוצאה" />
+          <FormControlLabel value="INCOME" control={<Radio />} label="הכנסה" />
+        </RadioGroup>
+      </div>
+      <FormControl fullWidth style={{ marginTop: '20px', textAlign: 'right' }}>
+        <InputLabel>קטגוריה</InputLabel>
+        <Select
+          value={category}
+          label="קטגוריה"
+          onChange={(e) => setCategory(e.target.value)}
+        >
+          {categories.map((cat) => (
+            <MenuItem key={cat} value={cat}>{cat}</MenuItem>
+          ))}
+        </Select>
+      </FormControl>
       <button 
         onClick={handleUpload} 
         disabled={uploading}

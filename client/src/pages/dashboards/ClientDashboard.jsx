@@ -19,14 +19,16 @@ import {
   MenuItem,
   Select,
   FormControl,
+  Paper,
+  Divider,
+  Chip
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DescriptionIcon from '@mui/icons-material/Description';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import { BarChart as MuiBarChart } from '@mui/x-charts/BarChart';
 import { PieChart as MuiPieChart } from '@mui/x-charts/PieChart';
 
@@ -55,483 +57,237 @@ const ClientDashboard = () => {
     }
   };
 
-  // Calculate stats
-  const expenses = invoices.filter(inv => inv.type !== 'INCOME').reduce((sum, inv) => sum + (inv.amount || 0), 0);
-  const incomes = invoices.filter(inv => inv.type === 'INCOME').reduce((sum, inv) => sum + (inv.amount || 0), 0);
+  // Calculate stats with safe numbers
+  const expenses = invoices.filter(inv => inv.type !== 'INCOME').reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+  const incomes = invoices.filter(inv => inv.type === 'INCOME').reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
   const netProfit = incomes - expenses;
   const lastUploadDate = invoices.length > 0 
     ? new Date(invoices[0].uploadTime).toLocaleDateString('he-IL') 
     : "-";
 
-  const StatCard = ({ title, value, icon: Icon, color, trend, trendValue }) => (
+  const StatCard = ({ title, value, icon: Icon, color, isProfit }) => (
     <Card
+      elevation={0}
       sx={{
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
-        border: `1px solid rgba(145, 158, 171, 0.2)`,
-        transition: 'all 0.3s ease',
+        borderRadius: '16px',
+        border: '1px solid #f0f0f0',
+        backgroundColor: '#ffffff',
+        transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
         '&:hover': {
-          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.12)',
           transform: 'translateY(-4px)',
+          boxShadow: '0 12px 24px rgba(0,0,0,0.05)',
         },
       }}
     >
-      <CardContent>
-        <Stack spacing={2}>
-          <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-            <Stack spacing={0.5}>
-              <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                {title}
-              </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 800, color: color }}>
-                ₪{value.toLocaleString('he-IL')}
-              </Typography>
-            </Stack>
-            <Box
-              sx={{
-                width: 56,
-                height: 56,
-                background: `linear-gradient(135deg, ${color}22 0%, ${color}11 100%)`,
-                borderRadius: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Icon sx={{ fontSize: 32, color: color }} />
-            </Box>
-          </Stack>
-
-          {trend && (
-            <Stack direction="row" alignItems="center" spacing={0.5}>
-              {trend === 'up' ? (
-                <ArrowUpwardIcon sx={{ fontSize: 16, color: '#22c55e' }} />
-              ) : (
-                <ArrowDownwardIcon sx={{ fontSize: 16, color: '#ef4444' }} />
-              )}
-              <Typography variant="caption" sx={{ color: trend === 'up' ? '#22c55e' : '#ef4444' }}>
-                {trendValue}
-              </Typography>
-            </Stack>
-          )}
+      <CardContent sx={{ p: 3 }}>
+        <Stack direction="row" spacing={2} alignItems="center">
+          <Box
+            sx={{
+              display: 'flex',
+              p: 1.5,
+              borderRadius: '12px',
+              backgroundColor: `${color}15`,
+              color: color,
+            }}
+          >
+            <Icon fontSize="medium" />
+          </Box>
+          <Box>
+            <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500, mb: 0.5 }}>
+              {title}
+            </Typography>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: '#1a202c' }}>
+              ₪{value.toLocaleString('he-IL')}
+            </Typography>
+          </Box>
         </Stack>
       </CardContent>
     </Card>
   );
 
-  // עיבוד נתונים לגרף עמודות (הכנסות מול הוצאות)
-const chartData = invoices.reduce((acc, inv) => {
-  // וידוא שהתאריך תקין
-  const date = new Date(inv.uploadTime);
-  const month = isNaN(date.getTime()) ? 'לא ידוע' : date.toLocaleString('he-IL', { month: 'short' });
-  
-  let existingMonth = acc.find(item => item.name === month);
-  if (!existingMonth) {
-    existingMonth = { name: month, הכנסות: 0, הוצאות: 0 };
-    acc.push(existingMonth);
-  }
-  
-  // המרה מפורשת למספר כדי למנוע NaN
-  const amount = Number(inv.amount) || 0;
-  
-  if (inv.type === 'INCOME') {
-    existingMonth.הכנסות += amount;
-  } else {
-    existingMonth.הוצאות += amount;
-  }
-  return acc;
-}, []).reverse();
-
-  // עיבוד נתונים לגרף עוגה (הוצאות לפי קטגוריה)
-const categoryData = invoices
-  .filter(inv => inv.type !== 'INCOME')
-  .reduce((acc, inv) => {
-    const cat = inv.category || 'כללי';
-    // המרה מפורשת למספר
-    const amount = Number(inv.amount) || 0;
-    
-    const existing = acc.find(item => item.name === cat);
-    if (existing) {
-      existing.value += amount;
-    } else {
-      acc.push({ name: cat, value: amount });
+  // עיבוד נתונים לגרפים
+  const chartData = invoices.reduce((acc, inv) => {
+    const date = new Date(inv.uploadTime);
+    const month = isNaN(date.getTime()) ? 'N/A' : date.toLocaleString('en-US', { month: 'short' });
+    let existingMonth = acc.find(item => item.name === month);
+    if (!existingMonth) {
+      existingMonth = { name: month, incomes: 0, expenses: 0 };
+      acc.push(existingMonth);
     }
+    const amt = Number(inv.amount) || 0;
+    if (inv.type === 'INCOME') existingMonth.incomes += amt;
+    else existingMonth.expenses += amt;
     return acc;
-  }, []);
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+  }, []).slice(0, 6).reverse();
+
+  const categoryData = invoices
+    .filter(inv => inv.type !== 'INCOME')
+    .reduce((acc, inv) => {
+      const cat = inv.category || 'General';
+      const amt = Number(inv.amount) || 0;
+      const existing = acc.find(item => item.name === cat);
+      if (existing) existing.value += amt;
+      else acc.push({ name: cat, value: amt });
+      return acc;
+    }, []);
 
   return (
-    <Box
-      sx={{
-        direction: 'rtl',
-        width: '100%',
-        minHeight: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      {/* Header Section */}
-      <Box sx={{ px: { xs: 2, sm: 3, md: 4 }, pt: { xs: 2, sm: 3, md: 4 }, mb: 4 }}>
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          justifyContent="space-between"
-          alignItems={{ xs: 'flex-start', sm: 'center' }}
-          spacing={2}
-        >
-          <Box>
-            <Typography
-              variant="h3"
-              sx={{
-                fontWeight: 800,
-                mb: 1,
-                color: '#1a202c',
-                fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' },
-              }}
-            >
-              ברוכים הבאים בחזרה 👋
-            </Typography>
-            <Typography variant="body1" sx={{ color: 'text.secondary' }}>
-              הנה סיכום של הוצאותיך והכנסותיך
-            </Typography>
-          </Box>
-          <Link to="/upload" style={{ textDecoration: 'none' }}>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              sx={{
-                background: 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)',
-                textTransform: 'none',
-                fontSize: '1rem',
-                fontWeight: 600,
-                px: 3,
-                py: 1.2,
-                borderRadius: '8px',
-                boxShadow: '0 4px 12px rgba(52, 152, 219, 0.3)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #2980b9 0%, #1f618d 100%)',
-                  boxShadow: '0 6px 16px rgba(52, 152, 219, 0.4)',
-                },
-                whiteSpace: 'nowrap',
-              }}
-            >
-              העלה חשבונית חדשה
-            </Button>
-          </Link>
-        </Stack>
-      </Box>
+    <Box sx={{ backgroundColor: '#f8fafc', minHeight: '100vh', py: 4, px: { xs: 2, md: 6 } }}>
+      
+      {/* Top Header */}
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems="center" spacing={3} sx={{ mb: 5 }}>
+        <Box sx={{ textAlign: { xs: 'center', sm: 'left' }, width: '100%' }}>
+          <Typography variant="h4" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.5px' }}>
+            Financial Overview
+          </Typography>
+          <Typography variant="body1" sx={{ color: '#64748b', mt: 0.5 }}>
+            Manage your invoices and track your business growth
+          </Typography>
+        </Box>
+        <Link to="/upload" style={{ textDecoration: 'none' }}>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            sx={{
+              backgroundColor: '#2563eb',
+              borderRadius: '10px',
+              px: 4,
+              py: 1.5,
+              fontWeight: 600,
+              boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)',
+              '&:hover': { backgroundColor: '#1d4ed8', boxShadow: '0 10px 15px -3px rgba(37, 99, 235, 0.3)' },
+              whiteSpace: 'nowrap'
+            }}
+          >
+            New Invoice
+          </Button>
+        </Link>
+      </Stack>
 
-      {/* Stats Grid */}
-      <Box sx={{ px: { xs: 2, sm: 3, md: 4 }, mb: 4, width: '100%' }}>
-        <Grid container spacing={3}>
-          <Grid size = {{ xs: 12, sm: 6, md: 4, lg: 3}}>
-            <StatCard
-              title="סה״כ הוצאות"
-              value={expenses}
-              icon={TrendingDownIcon}
-              color="#ef4444"
-              trend="down"
-              trendValue="+2.5% מהחודש הקודם"
-            />
-          </Grid>
-
-          <Grid size= {{ xs: 12, sm: 6, md: 4, lg: 3}}>
-            <StatCard
-              title="סה״כ הכנסות"
-              value={incomes}
-              icon={TrendingUpIcon}
-              color="#22c55e"
-              trend="up"
-              trendValue="+4.2% מהחודש הקודם"
-            />
-          </Grid>
-
-          <Grid size= {{ xs: 12, sm: 6, md: 4, lg: 3}}>
-            <StatCard
-              title="רווח נקי"
-              value={netProfit}
-              icon={DescriptionIcon}
-              color={netProfit >= 0 ? '#3498db' : '#f59e0b'}
-              trend={netProfit >= 0 ? 'up' : 'down'}
-              trendValue={netProfit >= 0 ? 'חיובי ✓' : 'שלילי ⚠'}
-            />
-          </Grid>
-
-          <Grid size= {{ xs: 12, sm: 6, md: 4, lg: 3}}>
-            <StatCard
-              title="ההעלאה האחרונה"
-              value={invoices.length}
-              icon={AccessTimeIcon}
-              color="#9333ea"
-              trendValue={lastUploadDate}
-            />
-          </Grid>
+      {/* Stats Section */}
+      <Grid container spacing={3} sx={{ mb: 5 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard title="Total Income" value={incomes} icon={TrendingUpIcon} color="#10b981" />
         </Grid>
-      </Box>
-
-      {/* Charts Section */}
-      <Grid container spacing={3} sx={{ mt: 1 }}>
-        
-        {/* גרף עמודות - הכנסות מול הוצאות */}
-        <Grid size={{ xs: 12, md: 8 }}>
-          <Card elevation={2}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                הכנסות מול הוצאות (לפי חודש)
-              </Typography>
-              <Box sx={{ height: 350, width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                {chartData && chartData.length > 0 ? (
-                  <MuiBarChart
-                    dataset={chartData}
-                    xAxis={[{ 
-                      scaleType: 'band', 
-                      dataKey: 'name',
-                      label: 'חודש'
-                    }]}
-                    series={[
-                      { dataKey: 'הכנסות', label: 'הכנסות', color: '#22c55e' },
-                      { dataKey: 'הוצאות', label: 'הוצאות', color: '#ef4444' },
-                    ]}
-                    margin={{ top: 50, right: 30, left: 40, bottom: 50 }}
-                    slotProps={{ 
-                      legend: { 
-                        direction: 'row', 
-                        position: { vertical: 'top', horizontal: 'middle' },
-                        padding: 10
-                      } 
-                    }}
-                  />
-                ) : (
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography color="text.secondary">טוען נתונים לגרף עמודות...</Typography>
-                  </Box>
-                )}
-              </Box>
-            </CardContent>
-          </Card>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard title="Total Expenses" value={expenses} icon={TrendingDownIcon} color="#ef4444" />
         </Grid>
-
-        {/* גרף עוגה - הוצאות לפי קטגוריה */}
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card elevation={2}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                התפלגות הוצאות
-              </Typography>
-              <Box sx={{ height: 350, width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                {categoryData && categoryData.length > 0 ? (
-                  <MuiPieChart
-                    series={[
-                      {
-                        data: categoryData.map((item, id) => ({
-                          id,
-                          value: item.value,
-                          label: item.name,
-                        })),
-                        innerRadius: 60,
-                        outerRadius: 100,
-                        paddingAngle: 5,
-                        cornerRadius: 5,
-                      },
-                    ]}
-                    slotProps={{ 
-                      legend: { 
-                        position: { vertical: 'bottom', horizontal: 'middle' },
-                        labelStyle: { fontSize: 12 }
-                      } 
-                    }}
-                  />
-                ) : (
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography color="text.secondary">אין נתוני הוצאות להצגה</Typography>
-                  </Box>
-                )}
-              </Box>
-            </CardContent>
-          </Card>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard title="Net Profit" value={netProfit} icon={AccountBalanceWalletIcon} color="#3b82f6" />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard title="Total Invoices" value={invoices.length} icon={DescriptionIcon} color="#8b5cf6" />
         </Grid>
       </Grid>
-     
 
-      {/* Table Section */}
-      <Box sx={{ px: { xs: 2, sm: 3, md: 4 }, pb: { xs: 2, sm: 3, md: 4 }, width: '100%', flexGrow: 1 }}>
-        <Card
-          sx={{
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
-            border: `1px solid rgba(145, 158, 171, 0.2)`,
-            width: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%',
-          }}
-        >
-          <Box sx={{ p: 3, borderBottom: '1px solid #e5e7eb' }}>
-            <Stack
-              direction={{ xs: 'column', sm: 'row' }}
-              justifyContent="space-between"
-              alignItems={{ xs: 'flex-start', sm: 'center' }}
-              spacing={2}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 700, color: '#1a202c' }}>
-                היסטוריית העלאות
-              </Typography>
-              <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap' }}>
-                <FormControl size="small" sx={{ minWidth: 120 }}>
-                  <Select
-                    value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(e.target.value)}
-                    sx={{ direction: 'rtl' }}
-                  >
-                    {[...Array(12)].map((_, i) => (
-                      <MenuItem key={i} value={i}>
-                        {new Date(2024, i).toLocaleString('he-IL', { month: 'long' })}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <FormControl size="small" sx={{ minWidth: 100 }}>
-                  <Select
-                    value={selectedYear}
-                    onChange={(e) => setSelectedYear(e.target.value)}
-                    sx={{ direction: 'rtl' }}
-                  >
-                    {[2024, 2025, 2026].map((year) => (
-                      <MenuItem key={year} value={year}>
-                        {year}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Stack>
-            </Stack>
-          </Box>
+      {/* Charts Section */}
+      <Grid container spacing={3} sx={{ mb: 5 }}>
+        <Grid item xs={12} md={8}>
+          <Paper elevation={0} sx={{ p: 3, borderRadius: '16px', border: '1px solid #f0f0f0' }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 3 }}>Revenue vs Expenses</Typography>
+            <Box sx={{ height: 350 }}>
+              {chartData.length > 0 ? (
+                <MuiBarChart
+                  dataset={chartData}
+                  xAxis={[{ scaleType: 'band', dataKey: 'name' }]}
+                  series={[
+                    { dataKey: 'incomes', label: 'Income', color: '#10b981' },
+                    { dataKey: 'expenses', label: 'Expense', color: '#ef4444' },
+                  ]}
+                  borderRadius={8}
+                  margin={{ top: 20, bottom: 30, left: 40, right: 10 }}
+                />
+              ) : <CircularProgress />}
+            </Box>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Paper elevation={0} sx={{ p: 3, borderRadius: '16px', border: '1px solid #f0f0f0' }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 3 }}>Expenses by Category</Typography>
+            <Box sx={{ height: 350, display: 'flex', justifyContent: 'center' }}>
+              {categoryData.length > 0 ? (
+                <MuiPieChart
+                  series={[{
+                    data: categoryData.map((d, i) => ({ id: i, value: d.value, label: d.name })),
+                    innerRadius: 70,
+                    paddingAngle: 5,
+                    cornerRadius: 5,
+                  }]}
+                  slotProps={{ legend: { hidden: true } }}
+                />
+              ) : <Typography sx={{ mt: 10 }} color="text.secondary">No data yet</Typography>}
+            </Box>
+          </Paper>
+        </Grid>
+      </Grid>
 
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-              <CircularProgress />
-            </Box>
-          ) : invoices.length === 0 ? (
-            <Box sx={{ p: 4, textAlign: 'center' }}>
-              <DescriptionIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
-              <Typography variant="body1" sx={{ color: 'text.secondary', mb: 2 }}>
-                עדיין אין חשבוניות במערכת
-              </Typography>
-              <Link to="/upload" style={{ textDecoration: 'none' }}>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  sx={{
-                    background: '#3498db',
-                    textTransform: 'none',
-                    fontWeight: 600,
-                    '&:hover': { background: '#2980b9' },
-                  }}
-                >
-                  העלה חשבונית ראשונה
-                </Button>
-              </Link>
-            </Box>
-          ) : (
-            <TableContainer sx={{ overflowX: 'auto', flex: 1 }}>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                    <TableCell
-                      align="center"
-                      sx={{ fontWeight: 700, fontSize: '0.875rem', color: '#374151', py: 2.5 }}
-                    >
-                      שם הקובץ
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={{ fontWeight: 700, fontSize: '0.875rem', color: '#374151', py: 2.5 }}
-                    >
-                      סוג
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={{ fontWeight: 700, fontSize: '0.875rem', color: '#374151', py: 2.5 }}
-                    >
-                      סכום
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={{ fontWeight: 700, fontSize: '0.875rem', color: '#374151', py: 2.5 }}
-                    >
-                      תאריך
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={{ fontWeight: 700, fontSize: '0.875rem', color: '#374151', py: 2.5 }}
-                    >
-                      סטטוס
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {invoices.map((inv, index) => (
-                    <TableRow
-                      key={inv.invoiceId}
-                      sx={{
-                        '&:hover': { backgroundColor: '#f9fafb' },
-                        borderBottom: '1px solid #e5e7eb',
-                        '&:last-child': { borderBottom: 'none' },
-                      }}
-                    >
-                      <TableCell align="right" sx={{ py: 2.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 500, color: '#1f2937' }}>
-                          {inv.originalName}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right" sx={{ py: 2.5 }}>
-                        <Box
-                          sx={{
-                            display: 'inline-block',
-                            px: 2,
-                            py: 0.75,
-                            borderRadius: '6px',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            background: inv.type === 'INCOME' ? '#dcfce7' : '#fee2e2',
-                            color: inv.type === 'INCOME' ? '#166534' : '#991b1b',
-                          }}
-                        >
-                          {inv.type === 'INCOME' ? '📈 הכנסה' : '📉 הוצאה'}
-                        </Box>
-                      </TableCell>
-                      <TableCell align="right" sx={{ py: 2.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#1f2937' }}>
-                          ₪{(inv.amount || 0).toLocaleString('he-IL')}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right" sx={{ py: 2.5 }}>
-                        <Typography variant="body2" sx={{ color: '#6b7280' }}>
-                          {new Date(inv.uploadTime).toLocaleDateString('he-IL')}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right" sx={{ py: 2.5 }}>
-                        <Box
-                          sx={{
-                            display: 'inline-block',
-                            px: 2,
-                            py: 0.5,
-                            borderRadius: '6px',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            background: '#dcfce7',
-                            color: '#166534',
-                          }}
-                        >
-                          ✓ הושלם
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </Card>
-      </Box>
+     {/* Table Section */}
+      <Paper elevation={0} sx={{ borderRadius: '16px', border: '1px solid #f0f0f0', overflow: 'hidden' }}>
+        <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ffffff' }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>Recent Transactions</Typography>
+          {/* כאן אפשר להוסיף את הסלקטורים של חודש/שנה אם תרצי */}
+        </Box>
+        <Divider />
+        <TableContainer>
+          <Table>
+            <TableHead sx={{ backgroundColor: '#f8fafc' }}>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600, color: '#64748b' }}>Invoice Name</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#64748b' }}>Type</TableCell> {/* עמודה חדשה */}
+                <TableCell sx={{ fontWeight: 600, color: '#64748b' }}>Category</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#64748b' }}>Date</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#64748b' }} align="right">Amount</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#64748b' }} align="center">Status</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {invoices.map((inv) => (
+                <TableRow key={inv.invoiceId} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>{inv.originalName}</Typography>
+                  </TableCell>
+                  
+                  {/* עמודת סוג עם צבעים */}
+                  <TableCell>
+                    <Chip 
+                      label={inv.type === 'INCOME' ? 'Income' : 'Expense'} 
+                      size="small" 
+                      sx={{ 
+                        fontWeight: 600, 
+                        fontSize: '0.75rem',
+                        backgroundColor: inv.type === 'INCOME' ? '#dcfce7' : '#fee2e2', 
+                        color: inv.type === 'INCOME' ? '#166534' : '#991b1b',
+                        borderRadius: '6px',
+                        width: '80px'
+                      }} 
+                    />
+                  </TableCell>
+
+                  <TableCell>
+                    <Chip label={inv.category || 'General'} size="small" variant="outlined" sx={{ fontWeight: 500, color: '#475569' }} />
+                  </TableCell>
+                  
+                  <TableCell sx={{ color: '#64748b' }}>{new Date(inv.uploadTime).toLocaleDateString('he-IL')}</TableCell>
+                  
+                  <TableCell align="right" sx={{ fontWeight: 700, color: inv.type === 'INCOME' ? '#10b981' : '#ef4444' }}>
+                    {inv.type === 'INCOME' ? '+' : '-'} ₪{Number(inv.amount).toLocaleString()}
+                  </TableCell>
+
+                  <TableCell align="center">
+                    <Chip 
+                      label="Completed" 
+                      size="small" 
+                      sx={{ backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, borderRadius: '6px' }} 
+                    />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
     </Box>
   );
 };
+
 export default ClientDashboard;

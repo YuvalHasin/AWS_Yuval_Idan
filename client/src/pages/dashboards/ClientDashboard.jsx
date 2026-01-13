@@ -33,34 +33,83 @@ import { BarChart as MuiBarChart } from '@mui/x-charts/BarChart';
 import { PieChart as MuiPieChart } from '@mui/x-charts/PieChart';
 
 const ClientDashboard = () => {
+  // financial reports API endpoint
   const GET_API_URL = "https://0wvwt8s2u8.execute-api.us-east-1.amazonaws.com/dev/invoices";
+  const GET_REPORTS_API = "https://0wvwt8s2u8.execute-api.us-east-1.amazonaws.com/dev/financial-reports"; 
+  
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  
+  // state for financial statistics from Lambda
+  const [stats, setStats] = useState({
+    totalIncome: 0,
+    totalExpenses: 0,
+    netProfit: 0,
+  });
 
   useEffect(() => {
-    fetchInvoices();
+    fetchData(); // 🔹 CHANGE 3: Renamed from fetchInvoices to fetchData
   }, []);
 
-  const fetchInvoices = async () => {
+  //  fetches BOTH invoices AND financial reports
+  const fetchData = async () => {
     try {
-      const response = await axios.get(GET_API_URL);
-      const sortedData = response.data.sort((a, b) => 
+      setLoading(true);
+      
+      // Fetch invoices for the table (same as before)
+      const invoicesResponse = await axios.get(GET_API_URL);
+      const sortedData = invoicesResponse.data.sort((a, b) => 
         new Date(b.uploadTime) - new Date(a.uploadTime)
       );
       setInvoices(sortedData);
+      
+      // Fetch financial reports from Lambda
+      try {
+        const reportsResponse = await axios.get(GET_REPORTS_API);
+        const reports = reportsResponse.data;
+        
+        console.log('📊 Financial Reports from Lambda:', reports);
+        
+        // Calculate totals from yearly data
+        let totalIncome = 0;
+        let totalExpenses = 0;
+        
+        Object.values(reports.yearly || {}).forEach(yearData => {
+          totalIncome += yearData.income || 0;
+          totalExpenses += yearData.expense || 0;
+        });
+        
+        setStats({
+          totalIncome,
+          totalExpenses,
+          netProfit: totalIncome - totalExpenses,
+        });
+      } catch (reportError) {
+        //  FALLBACK: If Lambda fails, calculate from invoices (old method)
+        console.warn("⚠️ Failed to fetch reports from Lambda, using fallback calculation:", reportError);
+        const expenses = sortedData.filter(inv => inv.type !== 'INCOME').reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+        const incomes = sortedData.filter(inv => inv.type === 'INCOME').reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+        
+        setStats({
+          totalIncome: incomes,
+          totalExpenses: expenses,
+          netProfit: incomes - expenses,
+        });
+      }
+      
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error("❌ Error fetching data:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Calculate stats with safe numbers
-  const expenses = invoices.filter(inv => inv.type !== 'INCOME').reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
-  const incomes = invoices.filter(inv => inv.type === 'INCOME').reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
-  const netProfit = incomes - expenses;
+  //  using stats from state instead of calculating locally
+  const expenses = stats.totalExpenses;
+  const incomes = stats.totalIncome;
+  const netProfit = stats.netProfit;
   const lastUploadDate = invoices.length > 0 
     ? new Date(invoices[0].uploadTime).toLocaleDateString('he-IL') 
     : "-";
@@ -105,7 +154,7 @@ const ClientDashboard = () => {
     </Card>
   );
 
-  // עיבוד נתונים לגרפים
+  // Chart data processing (unchanged)
   const chartData = invoices.reduce((acc, inv) => {
     const date = new Date(inv.uploadTime);
     const month = isNaN(date.getTime()) ? 'N/A' : date.toLocaleString('en-US', { month: 'short' });
@@ -130,6 +179,15 @@ const ClientDashboard = () => {
       else acc.push({ name: cat, value: amt });
       return acc;
     }, []);
+
+  //  loading state
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <CircularProgress size={60} />
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ backgroundColor: '#f8fafc', minHeight: '100vh', py: 4, px: { xs: 2, md: 6 } }}>
@@ -164,7 +222,7 @@ const ClientDashboard = () => {
         </Link>
       </Stack>
 
-      {/* Stats Section */}
+      {/* Stats Section - Now using Lambda data */}
       <Grid container spacing={3} sx={{ mb: 5 }}>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard title="Total Income" value={incomes} icon={TrendingUpIcon} color="#10b981" />
@@ -225,7 +283,6 @@ const ClientDashboard = () => {
       <Paper elevation={0} sx={{ borderRadius: '16px', border: '1px solid #f0f0f0', overflow: 'hidden' }}>
         <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ffffff' }}>
           <Typography variant="h6" sx={{ fontWeight: 700 }}>Recent Transactions</Typography>
-          {/* כאן אפשר להוסיף את הסלקטורים של חודש/שנה אם תרצי */}
         </Box>
         <Divider />
         <TableContainer>
@@ -233,7 +290,7 @@ const ClientDashboard = () => {
             <TableHead sx={{ backgroundColor: '#f8fafc' }}>
               <TableRow>
                 <TableCell sx={{ fontWeight: 600, color: '#64748b' }}>Invoice Name</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: '#64748b' }}>Type</TableCell> {/* עמודה חדשה */}
+                <TableCell sx={{ fontWeight: 600, color: '#64748b' }}>Type</TableCell>
                 <TableCell sx={{ fontWeight: 600, color: '#64748b' }}>Category</TableCell>
                 <TableCell sx={{ fontWeight: 600, color: '#64748b' }}>Date</TableCell>
                 <TableCell sx={{ fontWeight: 600, color: '#64748b' }} align="right">Amount</TableCell>
@@ -246,8 +303,6 @@ const ClientDashboard = () => {
                   <TableCell>
                     <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>{inv.originalName}</Typography>
                   </TableCell>
-                  
-                  {/* עמודת סוג עם צבעים */}
                   <TableCell>
                     <Chip 
                       label={inv.type === 'INCOME' ? 'Income' : 'Expense'} 
@@ -262,17 +317,13 @@ const ClientDashboard = () => {
                       }} 
                     />
                   </TableCell>
-
                   <TableCell>
                     <Chip label={inv.category || 'General'} size="small" variant="outlined" sx={{ fontWeight: 500, color: '#475569' }} />
                   </TableCell>
-                  
                   <TableCell sx={{ color: '#64748b' }}>{new Date(inv.uploadTime).toLocaleDateString('he-IL')}</TableCell>
-                  
                   <TableCell align="right" sx={{ fontWeight: 700, color: inv.type === 'INCOME' ? '#10b981' : '#ef4444' }}>
                     {inv.type === 'INCOME' ? '+' : '-'} ₪{Number(inv.amount).toLocaleString()}
                   </TableCell>
-
                   <TableCell align="center">
                     <Chip 
                       label="Completed" 
@@ -289,5 +340,4 @@ const ClientDashboard = () => {
     </Box>
   );
 };
-
 export default ClientDashboard;

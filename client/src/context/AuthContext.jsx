@@ -10,7 +10,7 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
-  const [loading, setLoading] = useState(true); // checking session on mount
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   // Check if user is already logged in (on page refresh)
@@ -19,12 +19,10 @@ export const AuthProvider = ({ children }) => {
       try {
         setLoading(true);
         
-        // Try to get current user from existing session
         const currentUser = await getCurrentUser();
         const session = await fetchAuthSession();
         
         if (currentUser && session.tokens) {
-          // User is already logged in!
           const groups = session.tokens?.accessToken?.payload['cognito:groups'] || 
                         session.tokens?.idToken?.payload['cognito:groups'] || [];
           
@@ -42,13 +40,11 @@ export const AuthProvider = ({ children }) => {
           setUser(currentUser);
           setUserRole(role);
         } else {
-          // No valid session
           console.log('ℹ️ No active session found');
           setUser(null);
           setUserRole(null);
         }
       } catch (err) {
-        // User is not logged in
         console.log('ℹ️ User not authenticated');
         setUser(null);
         setUserRole(null);
@@ -58,7 +54,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     checkAuthState();
-  }, []); // Runs once on mount
+  }, []);
 
   const login = async (email, password) => {
     try {
@@ -70,7 +66,7 @@ export const AuthProvider = ({ children }) => {
         password: password,
       });
 
-      if (nextStep.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
+      if (nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
         console.log('🔒 NEW_PASSWORD_REQUIRED detected, auto-completing...');
       }
 
@@ -113,14 +109,24 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ✅ UPDATED LOGOUT FUNCTION
   const logout = async () => {
+    setLoading(true); // ✅ CHANGE #1: Show loading during logout
     try {
-      await signOut();
+      await signOut({ global: true }); // ✅ CHANGE #2: Global sign out
       setUser(null);
       setUserRole(null);
       console.log('✅ User signed out successfully');
     } catch (err) {
       console.error('❌ Logout error:', err);
+      // ✅ CHANGE #3: Even if signOut fails, clear local state
+      setUser(null);
+      setUserRole(null);
+      // ✅ CHANGE #4: Fallback - manually clear storage
+      localStorage.clear();
+      sessionStorage.clear();
+    } finally {
+      setLoading(false); // ✅ CHANGE #5: Always reset loading state
     }
   };
 
@@ -139,6 +145,7 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {

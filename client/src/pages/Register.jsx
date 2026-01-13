@@ -265,12 +265,13 @@ const Register = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #1a2980 0%, #26d0ce 100%)',
+        background: 'linear-gradient(135deg, #1e3a8a 0%, #0891b2 100%)', // ✅ Blue-to-teal (Landing Page)
         px: { xs: 2, sm: 3 },
         position: 'relative',
         overflow: 'hidden',
       }}
     >
+      {/* Background decorations */}
       <Box
         sx={{
           position: 'absolute',
@@ -296,6 +297,7 @@ const Register = () => {
         }}
       />
 
+      {/* Back button */}
       <Tooltip title="Back to home">
         <IconButton
           onClick={() => navigate('/')}
@@ -329,24 +331,26 @@ const Register = () => {
           zIndex: 1,
         }}
       >
+        {/* Logo */}
         <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
           <Box
             sx={{
               width: 56,
               height: 56,
-              background: 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)',
+              background: 'linear-gradient(135deg, #1e3a8a 0%, #0891b2 100%)', // ✅ Matches landing
               borderRadius: '12px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: 'white',
-              boxShadow: '0 4px 12px rgba(52, 152, 219, 0.3)',
+              boxShadow: '0 4px 12px rgba(30, 58, 138, 0.4)',
             }}
           >
             <FolderIcon sx={{ fontSize: '1.8rem' }} />
           </Box>
         </Box>
 
+        {/* Title */}
         <Box sx={{ textAlign: 'center', mb: 4 }}>
           <Typography
             variant="h4"
@@ -370,6 +374,7 @@ const Register = () => {
           </Alert>
         )}
 
+        {/* Account Type Selector */}
         <Box sx={{ mb: 3 }}>
           <Typography variant="body2" sx={{ color: '#6b7280', mb: 1.5, fontWeight: 500 }}>
             Select Account Type
@@ -386,10 +391,10 @@ const Register = () => {
                 fontWeight: 600,
                 borderRadius: '8px',
                 '&.Mui-selected': {
-                  background: 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)',
+                  background: 'linear-gradient(135deg, #1e3a8a 0%, #0891b2 100%)', // ✅ Matches landing
                   color: 'white',
                   '&:hover': {
-                    background: 'linear-gradient(135deg, #2980b9 0%, #1f618d 100%)',
+                    background: 'linear-gradient(135deg, #1e40af 0%, #0e7490 100%)',
                   },
                 },
               },
@@ -406,6 +411,7 @@ const Register = () => {
           </ToggleButtonGroup>
         </Box>
 
+        {/* Registration Form */}
         <Box component="form" onSubmit={handleRegister} noValidate>
           <Stack spacing={2.5}>
             <TextField
@@ -429,7 +435,7 @@ const Register = () => {
                   '&:hover': { backgroundColor: '#f3f4f6' },
                   '&.Mui-focused': {
                     backgroundColor: '#ffffff',
-                    '& fieldset': { borderColor: '#3498db', borderWidth: '2px' },
+                    '& fieldset': { borderColor: '#0891b2', borderWidth: '2px' }, // ✅ Teal focus
                   },
                 },
               }}
@@ -457,7 +463,7 @@ const Register = () => {
                   '&:hover': { backgroundColor: '#f3f4f6' },
                   '&.Mui-focused': {
                     backgroundColor: '#ffffff',
-                    '& fieldset': { borderColor: '#3498db', borderWidth: '2px' },
+                    '& fieldset': { borderColor: '#0891b2', borderWidth: '2px' },
                   },
                 },
               }}
@@ -498,7 +504,7 @@ const Register = () => {
                   '&:hover': { backgroundColor: '#f3f4f6' },
                   '&.Mui-focused': {
                     backgroundColor: '#ffffff',
-                    '& fieldset': { borderColor: '#3498db', borderWidth: '2px' },
+                    '& fieldset': { borderColor: '#0891b2', borderWidth: '2px' },
                   },
                 },
               }}
@@ -539,7 +545,7 @@ const Register = () => {
                   '&:hover': { backgroundColor: '#f3f4f6' },
                   '&.Mui-focused': {
                     backgroundColor: '#ffffff',
-                    '& fieldset': { borderColor: '#3498db', borderWidth: '2px' },
+                    '& fieldset': { borderColor: '#0891b2', borderWidth: '2px' },
                   },
                 },
               }}
@@ -567,18 +573,19 @@ const Register = () => {
               type="submit"
               disabled={loading || success}
               sx={{
-                background: 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)',
+                background: 'linear-gradient(135deg, #1e3a8a 0%, #0891b2 100%)', // ✅ Matches landing
                 color: 'white',
                 textTransform: 'none',
                 fontWeight: 700,
                 fontSize: '1rem',
                 py: 1.5,
                 borderRadius: '8px',
-                boxShadow: '0 4px 12px rgba(52, 152, 219, 0.3)',
+                boxShadow: '0 4px 12px rgba(30, 58, 138, 0.4)',
                 mt: 1,
                 '&:hover:not(:disabled)': {
-                  background: 'linear-gradient(135deg, #2980b9 0%, #1f618d 100%)',
+                  background: 'linear-gradient(135deg, #1e40af 0%, #0e7490 100%)',
                   transform: 'translateY(-2px)',
+                  boxShadow: '0 6px 16px rgba(30, 58, 138, 0.5)',
                 },
                 '&:disabled': {
                   opacity: 0.7,
@@ -590,6 +597,7 @@ const Register = () => {
           </Stack>
         </Box>
 
+        {/* Sign in link */}
         <Box sx={{ mt: 4, textAlign: 'center', pt: 3, borderTop: '1px solid #e5e7eb' }}>
           <Typography variant="body2" sx={{ color: '#6b7280' }}>
             Already have an account?{' '}
@@ -597,10 +605,10 @@ const Register = () => {
               component={RouterLink}
               to="/login"
               sx={{
-                color: '#3498db',
+                color: '#0891b2', // ✅ Teal link
                 textDecoration: 'none',
                 fontWeight: 600,
-                '&:hover': { textDecoration: 'underline', color: '#2980b9' },
+                '&:hover': { textDecoration: 'underline', color: '#0e7490' },
               }}
             >
               Sign in
@@ -609,6 +617,7 @@ const Register = () => {
         </Box>
       </Card>
 
+      {/* Verification Modal */}
       <Dialog
         open={showVerificationModal}
         onClose={handleCloseModal}
@@ -628,7 +637,7 @@ const Register = () => {
                 sx={{
                   width: 48,
                   height: 48,
-                  background: 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)',
+                  background: 'linear-gradient(135deg, #1e3a8a 0%, #0891b2 100%)', // ✅ Matches landing
                   borderRadius: '12px',
                   display: 'flex',
                   alignItems: 'center',
@@ -661,7 +670,7 @@ const Register = () => {
             <Typography
               variant="body1"
               sx={{
-                color: '#3498db',
+                color: '#0891b2', // ✅ Teal
                 fontWeight: 600,
                 textAlign: 'center',
                 mb: 3,
@@ -700,7 +709,7 @@ const Register = () => {
                     textAlign: 'center',
                     letterSpacing: '0.5rem',
                     '&.Mui-focused': {
-                      '& fieldset': { borderColor: '#3498db', borderWidth: '2px' },
+                      '& fieldset': { borderColor: '#0891b2', borderWidth: '2px' },
                     },
                   },
                   '& input': {
@@ -721,14 +730,14 @@ const Register = () => {
               onClick={handleVerifyCode}
               disabled={verifying || verificationCode.length !== 6}
               sx={{
-                background: 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)',
+                background: 'linear-gradient(135deg, #1e3a8a 0%, #0891b2 100%)', // ✅ Matches landing
                 color: 'white',
                 textTransform: 'none',
                 fontWeight: 700,
                 py: 1.5,
                 borderRadius: '8px',
                 '&:hover:not(:disabled)': {
-                  background: 'linear-gradient(135deg, #2980b9 0%, #1f618d 100%)',
+                  background: 'linear-gradient(135deg, #1e40af 0%, #0e7490 100%)',
                 },
                 '&:disabled': {
                   opacity: 0.6,
@@ -752,7 +761,7 @@ const Register = () => {
                 onClick={handleResendCode}
                 disabled={resending}
                 sx={{
-                  color: '#3498db',
+                  color: '#0891b2', // ✅ Teal
                   textDecoration: 'none',
                   fontWeight: 600,
                   cursor: resending ? 'not-allowed' : 'pointer',

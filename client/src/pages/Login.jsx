@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useNavigate, Link as RouterLink, useLocation } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -11,38 +11,42 @@ import {
   IconButton,
   Tooltip,
   InputAdornment,
+  Alert,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import FolderIcon from '@mui/icons-material/Folder';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import { useAuth } from '../context/AuthContext'; // <--- הייבוא החדש
+import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login } = useAuth(); // <--- שליפת פונקציית ההתחברות מהקונטקסט
+  const location = useLocation();
+  
+  const { login, loading, error: authError } = useAuth();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState(location.state?.message || '');
 
-  // בדיקת תקינות בסיסית
   const validateForm = () => {
     const newErrors = {};
+    
     if (!email) {
       newErrors.email = 'Email is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       newErrors.email = 'Please enter a valid email';
     }
+    
     if (!password) {
       newErrors.password = 'Password is required';
     }
+    
     return newErrors;
   };
 
-  // ביצוע ההתחברות
   const handleLogin = async (e) => {
     e.preventDefault();
     const newErrors = validateForm();
@@ -52,35 +56,33 @@ const Login = () => {
       return;
     }
 
-    setLoading(true);
     setErrors({});
 
     try {
-      // 1. קריאה לפונקציה האמיתית מול Cognito
       await login(email, password);
-      
-      // 2. אם הצליח - המעבר לדשבורד
-      // (הניתוב לדשבורד הנכון יקרה ב-DashboardRouter בהתבסס על ה-Role)
+      console.log('✅ Login successful, navigating to dashboard');
       navigate('/dashboard');
       
-    } catch (error) {
-      console.error("Login Failed:", error);
-      // הצגת הודעת שגיאה למשתמש
-      setErrors({ 
-        submit: error.message || 'Incorrect username or password.' 
-      });
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      console.error('❌ Login failed:', err);
+      
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (err.name === 'NotAuthorizedException') {
+        errorMessage = 'Incorrect email or password.';
+      } else if (err.name === 'UserNotFoundException') {
+        errorMessage = 'No account found with this email.';
+      } else if (err.name === 'UserNotConfirmedException') {
+        errorMessage = 'Please verify your email address before signing in.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setErrors({ submit: errorMessage });
     }
   };
 
-  const handleClickShowPassword = () => {
-    setShowPassword(!showPassword);
-  };
-
-  const handleMouseDownPassword = (event) => {
-    event.preventDefault();
-  };
+  const handleClickShowPassword = () => setShowPassword(!showPassword);
 
   return (
     <Box
@@ -89,13 +91,13 @@ const Login = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #1a2980 0%, #26d0ce 100%)',
+        background: 'linear-gradient(135deg, #1e3a8a 0%, #0891b2 100%)', // ✅ Changed to blue-teal (Landing Page)
         px: { xs: 2, sm: 3 },
         position: 'relative',
         overflow: 'hidden',
       }}
     >
-      {/* אלמנטים דקורטיביים ברקע */}
+      {/* Background decorations */}
       <Box
         sx={{
           position: 'absolute',
@@ -121,7 +123,7 @@ const Login = () => {
         }}
       />
 
-      {/* כפתור חזרה לדף הבית */}
+      {/* Back button */}
       <Tooltip title="Back to home">
         <IconButton
           onClick={() => navigate('/')}
@@ -143,11 +145,10 @@ const Login = () => {
         </IconButton>
       </Tooltip>
 
-      {/* כרטיס ההתחברות */}
       <Card
         sx={{
           width: '100%',
-          maxWidth: '420px',
+          maxWidth: '440px',
           p: { xs: 3, sm: 4, md: 5 },
           borderRadius: '16px',
           boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2)',
@@ -156,26 +157,26 @@ const Login = () => {
           zIndex: 1,
         }}
       >
-        {/* לוגו */}
+        {/* Logo */}
         <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
           <Box
             sx={{
               width: 56,
               height: 56,
-              background: 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)',
+              background: 'linear-gradient(135deg, #1e3a8a 0%, #0891b2 100%)', // ✅ Changed to blue-teal
               borderRadius: '12px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: 'white',
-              boxShadow: '0 4px 12px rgba(52, 152, 219, 0.3)',
+              boxShadow: '0 4px 12px rgba(30, 58, 138, 0.4)', // ✅ Changed shadow color
             }}
           >
             <FolderIcon sx={{ fontSize: '1.8rem' }} />
           </Box>
         </Box>
 
-        {/* כותרת */}
+        {/* Title */}
         <Box sx={{ textAlign: 'center', mb: 4 }}>
           <Typography
             variant="h4"
@@ -193,10 +194,16 @@ const Login = () => {
           </Typography>
         </Box>
 
-        {/* טופס */}
+        {/* Success message */}
+        {successMessage && (
+          <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccessMessage('')}>
+            {successMessage}
+          </Alert>
+        )}
+
+        {/* Login Form */}
         <Box component="form" onSubmit={handleLogin} noValidate>
           <Stack spacing={2.5}>
-            {/* שדה אימייל */}
             <TextField
               fullWidth
               type="email"
@@ -219,13 +226,12 @@ const Login = () => {
                   '&:hover': { backgroundColor: '#f3f4f6' },
                   '&.Mui-focused': {
                     backgroundColor: '#ffffff',
-                    '& fieldset': { borderColor: '#3498db', borderWidth: '2px' },
+                    '& fieldset': { borderColor: '#0891b2', borderWidth: '2px' }, // ✅ Changed to teal
                   },
                 },
               }}
             />
 
-            {/* שדה סיסמה */}
             <TextField
               fullWidth
               type={showPassword ? 'text' : 'password'}
@@ -246,7 +252,6 @@ const Login = () => {
                   <InputAdornment position="end">
                     <IconButton
                       onClick={handleClickShowPassword}
-                      onMouseDown={handleMouseDownPassword}
                       edge="end"
                       disabled={loading}
                     >
@@ -262,14 +267,13 @@ const Login = () => {
                   '&:hover': { backgroundColor: '#f3f4f6' },
                   '&.Mui-focused': {
                     backgroundColor: '#ffffff',
-                    '& fieldset': { borderColor: '#3498db', borderWidth: '2px' },
+                    '& fieldset': { borderColor: '#0891b2', borderWidth: '2px' }, // ✅ Changed to teal
                   },
                 },
               }}
             />
 
-            {/* הצגת שגיאת התחברות כללית */}
-            {errors.submit && (
+            {(errors.submit || authError) && (
               <Box
                 sx={{
                   p: 2,
@@ -279,12 +283,11 @@ const Login = () => {
                 }}
               >
                 <Typography variant="body2" sx={{ color: '#991b1b', fontWeight: 500 }}>
-                  {errors.submit}
+                  {errors.submit || authError}
                 </Typography>
               </Box>
             )}
 
-            {/* כפתור התחברות */}
             <Button
               fullWidth
               variant="contained"
@@ -292,18 +295,22 @@ const Login = () => {
               type="submit"
               disabled={loading}
               sx={{
-                background: 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)',
+                background: 'linear-gradient(135deg, #1e3a8a 0%, #0891b2 100%)', // ✅ Changed to blue-teal
                 color: 'white',
                 textTransform: 'none',
                 fontWeight: 700,
                 fontSize: '1rem',
                 py: 1.5,
                 borderRadius: '8px',
-                boxShadow: '0 4px 12px rgba(52, 152, 219, 0.3)',
+                boxShadow: '0 4px 12px rgba(30, 58, 138, 0.4)', // ✅ Changed shadow
                 mt: 1,
                 '&:hover:not(:disabled)': {
-                  background: 'linear-gradient(135deg, #2980b9 0%, #1f618d 100%)',
+                  background: 'linear-gradient(135deg, #1e40af 0%, #0e7490 100%)', // ✅ Changed hover
                   transform: 'translateY(-2px)',
+                  boxShadow: '0 6px 16px rgba(30, 58, 138, 0.5)', // ✅ Changed shadow
+                },
+                '&:disabled': {
+                  opacity: 0.7,
                 },
               }}
             >
@@ -312,7 +319,7 @@ const Login = () => {
           </Stack>
         </Box>
 
-        {/* קישור להרשמה */}
+        {/* Sign up link */}
         <Box sx={{ mt: 4, textAlign: 'center', pt: 3, borderTop: '1px solid #e5e7eb' }}>
           <Typography variant="body2" sx={{ color: '#6b7280' }}>
             Don't have an account?{' '}
@@ -320,13 +327,13 @@ const Login = () => {
               component={RouterLink}
               to="/register"
               sx={{
-                color: '#3498db',
+                color: '#0891b2', // ✅ Changed to teal
                 textDecoration: 'none',
                 fontWeight: 600,
-                '&:hover': { textDecoration: 'underline', color: '#2980b9' },
+                '&:hover': { textDecoration: 'underline', color: '#0e7490' }, // ✅ Changed hover
               }}
             >
-              Get started
+              Create account
             </Link>
           </Typography>
         </Box>

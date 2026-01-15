@@ -21,81 +21,110 @@ import {
   FormControl,
   Paper,
   Divider,
-  Chip
+  Chip,
+  InputLabel
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DescriptionIcon from '@mui/icons-material/Description';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import FilterListIcon from '@mui/icons-material/FilterList';
 import { BarChart as MuiBarChart } from '@mui/x-charts/BarChart';
 import { PieChart as MuiPieChart } from '@mui/x-charts/PieChart';
 
 const ClientDashboard = () => {
-  // financial reports API endpoint
   const GET_API_URL = "https://0wvwt8s2u8.execute-api.us-east-1.amazonaws.com/dev/invoices";
-  const GET_REPORTS_API = "https://0wvwt8s2u8.execute-api.us-east-1.amazonaws.com/dev/financial-reports"; 
+  const GET_REPORTS_API = "https://0wvwt8s2u8.execute-api.us-east-1.amazonaws.com/dev/financial-reports";
   
   const [invoices, setInvoices] = useState([]);
+  const [allInvoices, setAllInvoices] = useState([]); // 🔹 NEW: Store all invoices
   const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   
-  // state for financial statistics from Lambda
+  // 🔹 NEW: Filter state for invoice table
+  const [invoiceFilter, setInvoiceFilter] = useState({
+    month: 'all',
+    year: 'all'
+  });
+  
+  // 🔹 NEW: Separate state for Lambda reports
+  const [currentMonthReport, setCurrentMonthReport] = useState(null);
+  
   const [stats, setStats] = useState({
     totalIncome: 0,
     totalExpenses: 0,
     netProfit: 0,
+    totalInvoices: 0,
   });
 
   useEffect(() => {
-    fetchData(); // 🔹 CHANGE 3: Renamed from fetchInvoices to fetchData
+    fetchData();
   }, []);
 
-  //  fetches BOTH invoices AND financial reports
+  // 🔹 NEW: Apply filters when filter state changes
+  useEffect(() => {
+    applyInvoiceFilters();
+  }, [invoiceFilter, allInvoices]);
+
   const fetchData = async () => {
     try {
       setLoading(true);
       
-      // Fetch invoices for the table (same as before)
+      // Fetch ALL invoices for filtering
       const invoicesResponse = await axios.get(GET_API_URL);
       const sortedData = invoicesResponse.data.sort((a, b) => 
         new Date(b.uploadTime) - new Date(a.uploadTime)
       );
-      setInvoices(sortedData);
+      setAllInvoices(sortedData); // 🔹 Store all invoices
+      setInvoices(sortedData.slice(0, 10)); // 🔹 Show last 10 by default
       
-      // Fetch financial reports from Lambda
+      // 🔹 Fetch CURRENT MONTH financial reports from Lambda
       try {
-        const reportsResponse = await axios.get(GET_REPORTS_API);
+        const reportsResponse = await axios.get(`${GET_REPORTS_API}?period=current`);
         const reports = reportsResponse.data;
         
-        console.log('📊 Financial Reports from Lambda:', reports);
+        console.log('📊 Current Month Financial Report:', reports);
+        setCurrentMonthReport(reports);
         
-        // Calculate totals from yearly data
-        let totalIncome = 0;
-        let totalExpenses = 0;
+        // Calculate stats from current month data
+        const currentMonth = reports.period.month;
+        const currentYear = reports.period.year;
+        const monthKey = `${currentMonth}/${currentYear}`;
         
-        Object.values(reports.yearly || {}).forEach(yearData => {
-          totalIncome += yearData.income || 0;
-          totalExpenses += yearData.expense || 0;
-        });
+        const monthData = reports.monthly[monthKey] || { income: 0, expense: 0, count: 0 };
         
         setStats({
-          totalIncome,
-          totalExpenses,
-          netProfit: totalIncome - totalExpenses,
+          totalIncome: monthData.income,
+          totalExpenses: monthData.expense,
+          netProfit: monthData.income - monthData.expense,
+          totalInvoices: reports.totalInvoices,
         });
+        
       } catch (reportError) {
-        //  FALLBACK: If Lambda fails, calculate from invoices (old method)
-        console.warn("⚠️ Failed to fetch reports from Lambda, using fallback calculation:", reportError);
-        const expenses = sortedData.filter(inv => inv.type !== 'INCOME').reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
-        const incomes = sortedData.filter(inv => inv.type === 'INCOME').reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+        console.warn("⚠️ Lambda failed, using fallback:", reportError);
+        
+        // Fallback: Calculate from invoices API
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+        
+        const currentMonthInvoices = sortedData.filter(inv => {
+          const date = new Date(inv.uploadTime);
+          return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+        });
+        
+        const expenses = currentMonthInvoices
+          .filter(inv => inv.type !== 'INCOME')
+          .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+        const incomes = currentMonthInvoices
+          .filter(inv => inv.type === 'INCOME')
+          .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
         
         setStats({
           totalIncome: incomes,
           totalExpenses: expenses,
           netProfit: incomes - expenses,
+          totalInvoices: currentMonthInvoices.length,
         });
       }
       
@@ -106,15 +135,38 @@ const ClientDashboard = () => {
     }
   };
 
-  //  using stats from state instead of calculating locally
+  // 🔹 NEW: Apply filters to invoice table
+  const applyInvoiceFilters = () => {
+    let filtered = [...allInvoices];
+    
+    // Filter by month and year
+    if (invoiceFilter.month !== 'all' || invoiceFilter.year !== 'all') {
+      filtered = filtered.filter(inv => {
+        const date = new Date(inv.uploadTime);
+        const invMonth = date.getMonth() + 1; // 1-12
+        const invYear = date.getFullYear();
+        
+        const monthMatch = invoiceFilter.month === 'all' || invMonth === parseInt(invoiceFilter.month);
+        const yearMatch = invoiceFilter.year === 'all' || invYear === parseInt(invoiceFilter.year);
+        
+        return monthMatch && yearMatch;
+      });
+    }
+    
+    setInvoices(filtered);
+  };
+
+  // 🔹 NEW: Get unique years from invoices
+  const getAvailableYears = () => {
+    const years = new Set(allInvoices.map(inv => new Date(inv.uploadTime).getFullYear()));
+    return Array.from(years).sort((a, b) => b - a); // Sort descending
+  };
+
   const expenses = stats.totalExpenses;
   const incomes = stats.totalIncome;
   const netProfit = stats.netProfit;
-  const lastUploadDate = invoices.length > 0 
-    ? new Date(invoices[0].uploadTime).toLocaleDateString('he-IL') 
-    : "-";
 
-  const StatCard = ({ title, value, icon: Icon, color, isProfit }) => (
+  const StatCard = ({ title, value, icon: Icon, color }) => (
     <Card
       elevation={0}
       sx={{
@@ -146,7 +198,7 @@ const ClientDashboard = () => {
               {title}
             </Typography>
             <Typography variant="h5" sx={{ fontWeight: 700, color: '#1a202c' }}>
-              ₪{value.toLocaleString('he-IL')}
+              {typeof value === 'number' ? `₪${value.toLocaleString('he-IL')}` : value}
             </Typography>
           </Box>
         </Stack>
@@ -154,33 +206,31 @@ const ClientDashboard = () => {
     </Card>
   );
 
-  // Chart data processing (unchanged)
-  const chartData = invoices.reduce((acc, inv) => {
-    const date = new Date(inv.uploadTime);
-    const month = isNaN(date.getTime()) ? 'N/A' : date.toLocaleString('en-US', { month: 'short' });
-    let existingMonth = acc.find(item => item.name === month);
-    if (!existingMonth) {
-      existingMonth = { name: month, incomes: 0, expenses: 0 };
-      acc.push(existingMonth);
-    }
-    const amt = Number(inv.amount) || 0;
-    if (inv.type === 'INCOME') existingMonth.incomes += amt;
-    else existingMonth.expenses += amt;
-    return acc;
-  }, []).slice(0, 6).reverse();
+  // 🔹 Generate chart data from Lambda report
+  const getChartData = () => {
+    if (!currentMonthReport) return [];
+    
+    const monthKey = `${currentMonthReport.period.month}/${currentMonthReport.period.year}`;
+    const data = currentMonthReport.monthly[monthKey];
+    
+    if (!data) return [];
+    
+    return [{
+      name: new Date(`${currentMonthReport.period.year}-${currentMonthReport.period.month}-01`).toLocaleString('en-US', { month: 'short' }),
+      incomes: data.income,
+      expenses: data.expense
+    }];
+  };
 
-  const categoryData = invoices
-    .filter(inv => inv.type !== 'INCOME')
-    .reduce((acc, inv) => {
-      const cat = inv.category || 'General';
-      const amt = Number(inv.amount) || 0;
-      const existing = acc.find(item => item.name === cat);
-      if (existing) existing.value += amt;
-      else acc.push({ name: cat, value: amt });
-      return acc;
-    }, []);
+  const getCategoryData = () => {
+    if (!currentMonthReport || !currentMonthReport.byCategory) return [];
+    
+    return Object.entries(currentMonthReport.byCategory).map(([name, value]) => ({
+      name,
+      value
+    }));
+  };
 
-  //  loading state
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
@@ -192,11 +242,10 @@ const ClientDashboard = () => {
   return (
     <Box sx={{ backgroundColor: '#f8fafc', minHeight: '100vh', py: 4, px: { xs: 2, md: 6 } }}>
       
-      {/* Top Header */}
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems="center" spacing={3} sx={{ mb: 5 }}>
         <Box sx={{ textAlign: { xs: 'center', sm: 'left' }, width: '100%' }}>
           <Typography variant="h4" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.5px' }}>
-            Financial Overview
+            Financial Overview - {currentMonthReport ? `${currentMonthReport.period.month}/${currentMonthReport.period.year}` : 'Current Month'}
           </Typography>
           <Typography variant="body1" sx={{ color: '#64748b', mt: 0.5 }}>
             Manage your invoices and track your business growth
@@ -222,19 +271,19 @@ const ClientDashboard = () => {
         </Link>
       </Stack>
 
-      {/* Stats Section - Now using Lambda data */}
+      {/* Stats Section */}
       <Grid container spacing={3} sx={{ mb: 5 }}>
         <Grid item xs={12} sm={6} md={3}>
-          <StatCard title="Total Income" value={incomes} icon={TrendingUpIcon} color="#10b981" />
+          <StatCard title="Monthly Income" value={incomes} icon={TrendingUpIcon} color="#10b981" />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <StatCard title="Total Expenses" value={expenses} icon={TrendingDownIcon} color="#ef4444" />
+          <StatCard title="Monthly Expenses" value={expenses} icon={TrendingDownIcon} color="#ef4444" />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard title="Net Profit" value={netProfit} icon={AccountBalanceWalletIcon} color="#3b82f6" />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <StatCard title="Total Invoices" value={invoices.length} icon={DescriptionIcon} color="#8b5cf6" />
+          <StatCard title="Total Invoices" value={stats.totalInvoices} icon={DescriptionIcon} color="#8b5cf6" />
         </Grid>
       </Grid>
 
@@ -242,11 +291,11 @@ const ClientDashboard = () => {
       <Grid container spacing={3} sx={{ mb: 5 }}>
         <Grid item xs={12} md={8}>
           <Paper elevation={0} sx={{ p: 3, borderRadius: '16px', border: '1px solid #f0f0f0' }}>
-            <Typography variant="h6" sx={{ fontWeight: 700, mb: 3 }}>Revenue vs Expenses</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 3 }}>Current Month Overview</Typography>
             <Box sx={{ height: 350 }}>
-              {chartData.length > 0 ? (
+              {getChartData().length > 0 ? (
                 <MuiBarChart
-                  dataset={chartData}
+                  dataset={getChartData()}
                   xAxis={[{ scaleType: 'band', dataKey: 'name' }]}
                   series={[
                     { dataKey: 'incomes', label: 'Income', color: '#10b981' },
@@ -255,7 +304,11 @@ const ClientDashboard = () => {
                   borderRadius={8}
                   margin={{ top: 20, bottom: 30, left: 40, right: 10 }}
                 />
-              ) : <CircularProgress />}
+              ) : (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                  <Typography color="text.secondary">No data for current month</Typography>
+                </Box>
+              )}
             </Box>
           </Paper>
         </Grid>
@@ -263,26 +316,83 @@ const ClientDashboard = () => {
           <Paper elevation={0} sx={{ p: 3, borderRadius: '16px', border: '1px solid #f0f0f0' }}>
             <Typography variant="h6" sx={{ fontWeight: 700, mb: 3 }}>Expenses by Category</Typography>
             <Box sx={{ height: 350, display: 'flex', justifyContent: 'center' }}>
-              {categoryData.length > 0 ? (
+              {getCategoryData().length > 0 ? (
                 <MuiPieChart
                   series={[{
-                    data: categoryData.map((d, i) => ({ id: i, value: d.value, label: d.name })),
+                    data: getCategoryData().map((d, i) => ({ id: i, value: d.value, label: d.name })),
                     innerRadius: 70,
                     paddingAngle: 5,
                     cornerRadius: 5,
                   }]}
                   slotProps={{ legend: { hidden: true } }}
                 />
-              ) : <Typography sx={{ mt: 10 }} color="text.secondary">No data yet</Typography>}
+              ) : (
+                <Typography sx={{ mt: 10 }} color="text.secondary">No expenses this month</Typography>
+              )}
             </Box>
           </Paper>
         </Grid>
       </Grid>
 
-     {/* Table Section */}
+      {/* 🔹 NEW: Invoice Table with Filters */}
       <Paper elevation={0} sx={{ borderRadius: '16px', border: '1px solid #f0f0f0', overflow: 'hidden' }}>
-        <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ffffff' }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>Recent Transactions</Typography>
+        <Box sx={{ p: 3, backgroundColor: '#ffffff' }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems="center" spacing={2}>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Invoice History ({invoices.length} invoices)
+            </Typography>
+            
+            {/* 🔹 NEW: Filter Controls */}
+            <Stack direction="row" spacing={2}>
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <InputLabel>Month</InputLabel>
+                <Select
+                  value={invoiceFilter.month}
+                  label="Month"
+                  onChange={(e) => setInvoiceFilter({ ...invoiceFilter, month: e.target.value })}
+                >
+                  <MenuItem value="all">All Months</MenuItem>
+                  <MenuItem value="1">January</MenuItem>
+                  <MenuItem value="2">February</MenuItem>
+                  <MenuItem value="3">March</MenuItem>
+                  <MenuItem value="4">April</MenuItem>
+                  <MenuItem value="5">May</MenuItem>
+                  <MenuItem value="6">June</MenuItem>
+                  <MenuItem value="7">July</MenuItem>
+                  <MenuItem value="8">August</MenuItem>
+                  <MenuItem value="9">September</MenuItem>
+                  <MenuItem value="10">October</MenuItem>
+                  <MenuItem value="11">November</MenuItem>
+                  <MenuItem value="12">December</MenuItem>
+                </Select>
+              </FormControl>
+              
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <InputLabel>Year</InputLabel>
+                <Select
+                  value={invoiceFilter.year}
+                  label="Year"
+                  onChange={(e) => setInvoiceFilter({ ...invoiceFilter, year: e.target.value })}
+                >
+                  <MenuItem value="all">All Years</MenuItem>
+                  {getAvailableYears().map(year => (
+                    <MenuItem key={year} value={year}>{year}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              
+              {/* Reset Filters Button */}
+              {(invoiceFilter.month !== 'all' || invoiceFilter.year !== 'all') && (
+                <Button
+                  size="small"
+                  onClick={() => setInvoiceFilter({ month: 'all', year: 'all' })}
+                  sx={{ textTransform: 'none' }}
+                >
+                  Reset
+                </Button>
+              )}
+            </Stack>
+          </Stack>
         </Box>
         <Divider />
         <TableContainer>
@@ -298,41 +408,49 @@ const ClientDashboard = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {invoices.map((inv) => (
-                <TableRow key={inv.invoiceId} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                  <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>{inv.originalName}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={inv.type === 'INCOME' ? 'Income' : 'Expense'} 
-                      size="small" 
-                      sx={{ 
-                        fontWeight: 600, 
-                        fontSize: '0.75rem',
-                        backgroundColor: inv.type === 'INCOME' ? '#dcfce7' : '#fee2e2', 
-                        color: inv.type === 'INCOME' ? '#166534' : '#991b1b',
-                        borderRadius: '6px',
-                        width: '80px'
-                      }} 
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Chip label={inv.category || 'General'} size="small" variant="outlined" sx={{ fontWeight: 500, color: '#475569' }} />
-                  </TableCell>
-                  <TableCell sx={{ color: '#64748b' }}>{new Date(inv.uploadTime).toLocaleDateString('he-IL')}</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, color: inv.type === 'INCOME' ? '#10b981' : '#ef4444' }}>
-                    {inv.type === 'INCOME' ? '+' : '-'} ₪{Number(inv.amount).toLocaleString()}
-                  </TableCell>
-                  <TableCell align="center">
-                    <Chip 
-                      label="Completed" 
-                      size="small" 
-                      sx={{ backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, borderRadius: '6px' }} 
-                    />
+              {invoices.length > 0 ? (
+                invoices.map((inv) => (
+                  <TableRow key={inv.invoiceId} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>{inv.originalName}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={inv.type === 'INCOME' ? 'Income' : 'Expense'} 
+                        size="small" 
+                        sx={{ 
+                          fontWeight: 600, 
+                          fontSize: '0.75rem',
+                          backgroundColor: inv.type === 'INCOME' ? '#dcfce7' : '#fee2e2', 
+                          color: inv.type === 'INCOME' ? '#166534' : '#991b1b',
+                          borderRadius: '6px',
+                          width: '80px'
+                        }} 
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Chip label={inv.category || 'General'} size="small" variant="outlined" sx={{ fontWeight: 500, color: '#475569' }} />
+                    </TableCell>
+                    <TableCell sx={{ color: '#64748b' }}>{new Date(inv.uploadTime).toLocaleDateString('he-IL')}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700, color: inv.type === 'INCOME' ? '#10b981' : '#ef4444' }}>
+                      {inv.type === 'INCOME' ? '+' : '-'} ₪{Number(inv.amount).toLocaleString()}
+                    </TableCell>
+                    <TableCell align="center">
+                      <Chip 
+                        label="Completed" 
+                        size="small" 
+                        sx={{ backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, borderRadius: '6px' }} 
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                    <Typography color="text.secondary">No invoices found for selected filters</Typography>
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </TableContainer>

@@ -1,5 +1,4 @@
 import { Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';  // ✅ ADDED: Import AuthProvider
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -10,23 +9,19 @@ import ReportsPage from './components/ReportsPage';
 
 function App() {
   return (
-    // Wrap everything in AuthProvider
-    <AuthProvider>
-      <Routes>
-        {/* Public Routes (No Layout) */}
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />  
+    <Routes>
+      {/* Public Routes (No Layout) */}
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />  
 
-        {/* Protected Routes (With Layout) */}
-        <Route element={<Layout />}>
-          <Route path="/dashboard" element={<DashboardRouter />} />
-          <Route path="/upload" element={<UploadPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
-        </Route>
-      </Routes>
-    </AuthProvider>  
-    // Close AuthProvider
+      {/* Protected Routes (With Layout) */}
+      <Route element={<Layout />}>
+        <Route path="/dashboard" element={<DashboardRouter />} />
+        <Route path="/upload" element={<UploadPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+      </Route>
+    </Routes>
   );
 }
 export default App;

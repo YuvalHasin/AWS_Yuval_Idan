@@ -1,0 +1,11 @@
+{
+  "name": "update-user-status",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Lambda to update user status in DynamoDB scanbook-users table",
+  "main": "index.mjs",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.490.0",
+    "@aws-sdk/lib-dynamodb": "^3.490.0"
+  }
+}

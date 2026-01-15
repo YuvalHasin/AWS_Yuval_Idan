@@ -1,0 +1,12 @@
+{
+  "name": "process-invoice",
+  "version": "1.0.0",
+  "description": "Lambda to process invoices with AWS Textract",
+  "type": "module",
+  "main": "index.mjs",
+  "dependencies": {
+    "@aws-sdk/client-textract": "^3.714.0",
+    "@aws-sdk/client-dynamodb": "^3.714.0",
+    "@aws-sdk/lib-dynamodb": "^3.714.0"
+  }
+}

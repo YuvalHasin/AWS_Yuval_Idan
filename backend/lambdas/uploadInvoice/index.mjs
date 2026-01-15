@@ -53,10 +53,11 @@ export const handler = async (event) => {
       uploadTime: new Date().toISOString(),
       originalName: file.filename,
       s3Key,
-      status: "UPLOADED",
+      status: "PROCESSING", 
       type: type || 'EXPENSE',
       category: category || 'General',
-      amount: 0,
+      amount: 0, //  Will be updated by ProcessInvoice Lambda
+      // No 'date' field yet - ProcessInvoice will add it
     };
 
     console.log(`💾 Saving to DynamoDB:`, invoiceItem);

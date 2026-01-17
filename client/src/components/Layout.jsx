@@ -119,11 +119,6 @@ const getMenuItemsByRole = () => {
         icon: <AssignmentIcon sx={{ color: '#ec4899' }} />,
         path: '/reports',
       },
-      {
-        label: 'Statistics',
-        icon: <BarChartIcon sx={{ color: '#8b5cf6' }} />,
-        path: '/statistics',
-      },
     ],
     ADMIN: [
       {

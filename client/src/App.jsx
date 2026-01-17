@@ -6,6 +6,7 @@ import UploadPage from './pages/UploadPage';
 import DashboardRouter from './components/DashboardRouter';
 import LandingPage from './pages/LandingPage';
 import ReportsPage from './components/ReportsPage'; 
+import ClientsList from './components/ClientsList';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         <Route path="/dashboard" element={<DashboardRouter />} />
         <Route path="/upload" element={<UploadPage />} />
         <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/clients" element={<ClientsList />} />
       </Route>
     </Routes>
   );

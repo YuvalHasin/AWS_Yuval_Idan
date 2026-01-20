@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import {
   Box,
   Button,
@@ -29,11 +30,23 @@ import CloseIcon from '@mui/icons-material/Close';
 import SendIcon from '@mui/icons-material/Send';
 import CategoryIcon from '@mui/icons-material/Category';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
-import { useAuth } from '../context/AuthContext'; // ✅ ADD THIS IMPORT AT TOP
 
 const UploadPage = () => {
   const navigate = useNavigate();
-  const { user } = useAuth(); // ✅ ADD THIS LINE (get authenticated user)
+  const { user, getAuthToken } = useAuth(); // ✅ ADD getAuthToken
+  
+  // ✅ REFACTORED: Use environment variable for API base URL
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
+  const API_KEY = import.meta.env.VITE_API_KEY;
+  const STORAGE_BUCKET = import.meta.env.VITE_STORAGE_BUCKET_NAME; 
+  
+  // ✅ Validate environment variable is set
+  if (!API_BASE_URL) {
+    console.error('❌ VITE_API_URL is not defined in .env file');
+  }
+  
+  // ✅ Construct upload endpoint from base URL
+  const UPLOAD_URL = `${API_BASE_URL}/upload`;
   
   // Invoice upload state
   const [selectedFile, setSelectedFile] = useState(null);
@@ -85,57 +98,83 @@ const UploadPage = () => {
     }
   };
 
-  // Handle invoice upload
+  // ✅ העתק את כל הפונקציה הזו והדבק אותה בתוך הקומפוננטה UploadPage
   const handleUpload = async () => {
-    if (!selectedFile) {
-      setUploadError('Please select a file first');
-      return;
-    }
-
-    if (!category) {
-      setUploadError('Please select a category');
-      return;
-    }
-
-    // ✅ FIX #1: Get real userId from Cognito
-    if (!user?.username) {
-      setUploadError('User not authenticated. Please log in again.');
+    if (!selectedFile || !category) {
+      setUploadError('Please select a file and category');
       return;
     }
 
     try {
       setUploading(true);
       setUploadError('');
+      setUploadSuccess(false);
 
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('userId', user.signInDetails?.loginId || user.username);
-      formData.append('type', invoiceType);
-      formData.append('category', category);
+      console.log('📤 Starting 2-step upload process...');
 
-      console.log('📤 Uploading with userId:', user.username); // ✅ Debug log
-
-      const response = await axios.post(
-        'https://0wvwt8s2u8.execute-api.us-east-1.amazonaws.com/dev/upload',
-        formData
+      // ✅ STEP 1: Get presigned URL from GenerateUploadLink Lambda
+      // 🔐 NEEDS Authorization header (JWT token)
+      const token = await getAuthToken();
+      const generateUrlResponse = await axios.post(
+        `${import.meta.env.VITE_API_URL}/generate-upload-link`,
+        {
+          userId: user.username, // From Cognito
+          fileName: selectedFile.name,
+          contentType: selectedFile.type, // e.g., "application/pdf"
+          category: category,
+          type: invoiceType
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}` // ✅ JWT for Lambda auth
+          }
+        }
       );
 
-      console.log('✅ Upload successful:', response.data);
+      const { uploadUrl, invoiceId, s3Key } = generateUrlResponse.data;
+      console.log(`✅ Step 1 complete: Got presigned URL for ${s3Key}`);
+
+      // ✅ STEP 2: Upload file directly to S3 using presigned URL
+      // ❌ NO Authorization header! (presigned URL is self-authenticated)
+      await axios.put(uploadUrl, selectedFile, {
+        headers: {
+          'Content-Type': selectedFile.type // ⚠️ MUST match contentType from Step 1
+          // ❌ NO 'Authorization' header here!
+        },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          console.log(`📊 Upload progress: ${percentCompleted}%`);
+        }
+      });
+
+      console.log(`✅ Step 2 complete: File uploaded to S3`);
+      console.log(`🔬 ProcessInvoice Lambda will now analyze the file automatically`);
+
       setUploadSuccess(true);
-      
-      //  Reset form
+
+      // Reset form
       setSelectedFile(null);
       setCategory('');
       setInvoiceType('EXPENSE');
 
-      //  Navigate AFTER showing success (improved UX)
+      // Navigate to dashboard after 2 seconds
       setTimeout(() => {
         navigate('/dashboard');
-      }, 2000); 
+      }, 2000);
 
     } catch (error) {
       console.error('❌ Upload error:', error);
-      setUploadError(error.response?.data?.message || 'Failed to upload invoice. Please try again.');
+      
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        setUploadError('Authentication failed. Please log in again.');
+      } else if (error.response?.data?.message) {
+        setUploadError(error.response.data.message);
+      } else {
+        setUploadError('Failed to upload invoice. Please try again.');
+      }
     } finally {
       setUploading(false);
     }

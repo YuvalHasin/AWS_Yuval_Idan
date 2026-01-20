@@ -1,4 +1,9 @@
 {
+  "name": "scanbook-workspace",
+  "version": "1.0.0",
+  "scripts": {
+    "install:all": "npm install && npm install --prefix backend && npm install --prefix client && npm install --prefix backend/lambdas/GetFinancialReports && npm install --prefix backend/lambdas/GetUsers && npm install --prefix backend/lambdas/ProcessInvoice && npm install --prefix backend/lambdas/uploadInvoice && npm install --prefix backend/lambdas/registerUser && npm install --prefix backend/lambdas/updateUserStatus && npm install --prefix backend/lambdas/postConfirmation"
+  },
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",

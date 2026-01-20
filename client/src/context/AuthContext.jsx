@@ -109,24 +109,46 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // ✅ UPDATED LOGOUT FUNCTION
   const logout = async () => {
-    setLoading(true); // ✅ CHANGE #1: Show loading during logout
+    setLoading(true);
     try {
-      await signOut({ global: true }); // ✅ CHANGE #2: Global sign out
+      await signOut({ global: true });
       setUser(null);
       setUserRole(null);
       console.log('✅ User signed out successfully');
     } catch (err) {
       console.error('❌ Logout error:', err);
-      // ✅ CHANGE #3: Even if signOut fails, clear local state
       setUser(null);
       setUserRole(null);
-      // ✅ CHANGE #4: Fallback - manually clear storage
       localStorage.clear();
       sessionStorage.clear();
     } finally {
-      setLoading(false); // ✅ CHANGE #5: Always reset loading state
+      setLoading(false);
+    }
+  };
+
+  // ✅ NEW: Get fresh authentication token
+  const getAuthToken = async () => {
+    try {
+      const session = await fetchAuthSession();
+      
+      if (!session.tokens) {
+        throw new Error('No valid session found');
+      }
+      
+      // Return the ID token as a string
+      const idToken = session.tokens.idToken?.toString();
+      
+      if (!idToken) {
+        throw new Error('No ID token available');
+      }
+      
+      console.log('🔑 Auth token retrieved successfully');
+      return idToken;
+      
+    } catch (error) {
+      console.error('❌ Error getting auth token:', error);
+      throw error;
     }
   };
 
@@ -139,6 +161,7 @@ export const AuthProvider = ({ children }) => {
         error,
         login,
         logout,
+        getAuthToken, // ✅ Expose the new function
       }}
     >
       {children}

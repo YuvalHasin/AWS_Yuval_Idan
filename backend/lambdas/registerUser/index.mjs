@@ -12,8 +12,21 @@ const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION });
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
 export const handler = async (event) => {
-  console.log('Registration request:', JSON.stringify(event, null, 2));
-  
+  // Handle CORS preflight OPTIONS request
+  if (event.httpMethod === 'OPTIONS') {
+    console.log(' Handling OPTIONS preflight request');
+    return {
+      statusCode: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token",
+        "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+        "Access-Control-Max-Age": "86400"
+      },
+      body: JSON.stringify({ message: "CORS preflight successful" })
+    };
+  }
+
   try {
     const { name, email, password, userType } = JSON.parse(event.body);
     

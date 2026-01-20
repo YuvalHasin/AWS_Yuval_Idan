@@ -2,11 +2,15 @@
 export const cognitoConfig = {
   Auth: {
     Cognito: {
-      userPoolId: 'us-east-1_v84PdOOZW', // ה-ID מהתמונה שלך
-      userPoolClientId: '2mh3g5q5fa1ov4js2tfbcua1t', // ה-Client ID שהשגת
+      userPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID,
+      userPoolClientId: import.meta.env.VITE_COGNITO_CLIENT_ID,
       loginWith: {
         email: true,
       },
     },
   },
+};
+export const s3Config = {
+    storageBucket: import.meta.env.VITE_STORAGE_BUCKET_NAME,
+    region: import.meta.env.VITE_AWS_REGION || 'us-east-1'
 };

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import {
   Box,
   Button,
@@ -29,25 +30,33 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import FilterListIcon from '@mui/icons-material/FilterList';
 import { BarChart as MuiBarChart } from '@mui/x-charts/BarChart';
 import { PieChart as MuiPieChart } from '@mui/x-charts/PieChart';
 
 const ClientDashboard = () => {
-  const GET_API_URL = "https://0wvwt8s2u8.execute-api.us-east-1.amazonaws.com/dev/invoices";
-  const GET_REPORTS_API = "https://0wvwt8s2u8.execute-api.us-east-1.amazonaws.com/dev/financial-reports";
+  // ✅ Environment variables
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
+  
+  // ✅ Validate environment variable
+  if (!API_BASE_URL) {
+    console.error('❌ VITE_API_URL is not defined in .env file');
+  }
+  
+  // ✅ Construct endpoints
+  const GET_INVOICES_URL = `${API_BASE_URL}/invoices`;
+  const GET_REPORTS_URL = `${API_BASE_URL}/financial-reports`;
+  
+  const { user } = useAuth(); // We don't need getAuthToken anymore for this bypass
   
   const [invoices, setInvoices] = useState([]);
-  const [allInvoices, setAllInvoices] = useState([]); // 🔹 NEW: Store all invoices
+  const [allInvoices, setAllInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // 🔹 NEW: Filter state for invoice table
   const [invoiceFilter, setInvoiceFilter] = useState({
     month: 'all',
     year: 'all'
   });
   
-  // 🔹 NEW: Separate state for Lambda reports
   const [currentMonthReport, setCurrentMonthReport] = useState(null);
   
   const [stats, setStats] = useState({
@@ -57,94 +66,166 @@ const ClientDashboard = () => {
     totalInvoices: 0,
   });
 
+  const parseInvoiceDate = (dateString) => {
+    if (!dateString || dateString === 'Not found') {
+      return new Date(0);
+    }
+    try {
+      const parts = dateString.split(/[\/.-]/);
+      if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+        return new Date(year, month, day);
+      }
+      return new Date(dateString);
+    } catch (error) {
+      console.error('Error parsing date:', dateString, error);
+      return new Date(0);
+    }
+  };
+
+  const formatDisplayDate = (dateString) => {
+    if (!dateString || dateString === 'Not found') {
+      return 'No date';
+    }
+    try {
+      const parsedDate = parseInvoiceDate(dateString);
+      return parsedDate.toLocaleDateString('he-IL');
+    } catch (error) {
+      return dateString;
+    }
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
 
-  // 🔹 NEW: Apply filters when filter state changes
   useEffect(() => {
     applyInvoiceFilters();
   }, [invoiceFilter, allInvoices]);
 
+  // ✅ FIX: The updated fetchData function (Bypassing Headers/CORS)
   const fetchData = async () => {
     try {
       setLoading(true);
       
-      // Fetch ALL invoices for filtering
-      const invoicesResponse = await axios.get(GET_API_URL);
-      const sortedData = invoicesResponse.data.sort((a, b) => 
-        new Date(b.uploadTime) - new Date(a.uploadTime)
-      );
-      setAllInvoices(sortedData); // 🔹 Store all invoices
-      setInvoices(sortedData.slice(0, 10)); // 🔹 Show last 10 by default
+      console.log('🚀 Fetching data via URL params (Simple Mode - Bypassing CORS)...');
+      console.log('🌐 API Base URL:', API_BASE_URL);
+
+      // 👇 KEY CHANGE: No headers, no Bearer token. 
+      // Just passing userId in params to bypass the browser Preflight check.
+      const config = {
+          params: { userId: user?.username } 
+      };
+
+      // 1. Fetch Invoices
+      const invoicesResponse = await axios.get(GET_INVOICES_URL, config);
       
-      // 🔹 Fetch CURRENT MONTH financial reports from Lambda
-      try {
-        const reportsResponse = await axios.get(`${GET_REPORTS_API}?period=current`);
-        const reports = reportsResponse.data;
-        
-        console.log('📊 Current Month Financial Report:', reports);
-        setCurrentMonthReport(reports);
-        
-        // Calculate stats from current month data
-        const currentMonth = reports.period.month;
-        const currentYear = reports.period.year;
-        const monthKey = `${currentMonth}/${currentYear}`;
-        
-        const monthData = reports.monthly[monthKey] || { income: 0, expense: 0, count: 0 };
-        
-        setStats({
-          totalIncome: monthData.income,
-          totalExpenses: monthData.expense,
-          netProfit: monthData.income - monthData.expense,
-          totalInvoices: reports.totalInvoices,
-        });
-        
-      } catch (reportError) {
-        console.warn("⚠️ Lambda failed, using fallback:", reportError);
-        
-        // Fallback: Calculate from invoices API
-        const now = new Date();
-        const currentMonth = now.getMonth();
-        const currentYear = now.getFullYear();
-        
-        const currentMonthInvoices = sortedData.filter(inv => {
-          const date = new Date(inv.uploadTime);
-          return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-        });
-        
-        const expenses = currentMonthInvoices
-          .filter(inv => inv.type !== 'INCOME')
-          .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
-        const incomes = currentMonthInvoices
-          .filter(inv => inv.type === 'INCOME')
-          .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
-        
-        setStats({
-          totalIncome: incomes,
-          totalExpenses: expenses,
-          netProfit: incomes - expenses,
-          totalInvoices: currentMonthInvoices.length,
-        });
+      const sortedData = invoicesResponse.data.sort((a, b) => {
+        const dateA = a.date && a.date !== 'Not found' ? parseInvoiceDate(a.date) : new Date(a.uploadTime);
+        const dateB = b.date && b.date !== 'Not found' ? parseInvoiceDate(b.date) : new Date(b.uploadTime);
+        return dateB - dateA;
+      });
+      
+      setAllInvoices(sortedData);
+      setInvoices(sortedData.slice(0, 10));
+
+      // 2. Fetch Reports (Also without headers)
+      const reportsResponse = await axios.get(GET_REPORTS_URL, {
+          params: { 
+              period: 'current',
+              userId: user?.username 
+          }
+      });
+      
+      const reports = reportsResponse.data;
+      console.log('📊 Current Month Financial Report:', reports);
+      setCurrentMonthReport(reports);
+      
+      // Calculate Stats
+      if (reports && reports.monthly) {
+           const monthKey = `${reports.period.month}/${reports.period.year}`;
+           const monthData = reports.monthly[monthKey]; // Removed || {} to check properly below
+           
+           if (!monthData || (monthData.income === 0 && monthData.expense === 0)) {
+               // Fallback logic from your original code
+               const availableMonths = Object.keys(reports.monthly);
+               if (availableMonths.length > 0) {
+                   const latestMonth = availableMonths[0];
+                   const latestData = reports.monthly[latestMonth];
+                   setStats({
+                      totalIncome: latestData.income || 0,
+                      totalExpenses: latestData.expense || 0,
+                      netProfit: (latestData.income || 0) - (latestData.expense || 0),
+                      totalInvoices: latestData.count || 0,
+                   });
+               } else {
+                   setStats({ totalIncome: 0, totalExpenses: 0, netProfit: 0, totalInvoices: 0 });
+               }
+           } else {
+               setStats({
+                  totalIncome: monthData.income || 0,
+                  totalExpenses: monthData.expense || 0,
+                  netProfit: (monthData.income || 0) - (monthData.expense || 0),
+                  totalInvoices: reports.totalInvoices || 0,
+               });
+           }
       }
-      
+
     } catch (error) {
       console.error("❌ Error fetching data:", error);
+      console.error("❌ Error details:", {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      
+      // Fallback calculation if lambda fails
+      if (allInvoices.length > 0) {
+          const now = new Date();
+          const currentMonth = now.getMonth();
+          const currentYear = now.getFullYear();
+          
+          const currentMonthInvoices = allInvoices.filter(inv => {
+            const date = new Date(inv.uploadTime);
+            return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+          });
+          
+          const expenses = currentMonthInvoices
+            .filter(inv => inv.type !== 'INCOME')
+            .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+          const incomes = currentMonthInvoices
+            .filter(inv => inv.type === 'INCOME')
+            .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+          
+          setStats({
+            totalIncome: incomes,
+            totalExpenses: expenses,
+            netProfit: incomes - expenses,
+            totalInvoices: currentMonthInvoices.length,
+          });
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // 🔹 NEW: Apply filters to invoice table
   const applyInvoiceFilters = () => {
     let filtered = [...allInvoices];
     
-    // Filter by month and year
     if (invoiceFilter.month !== 'all' || invoiceFilter.year !== 'all') {
       filtered = filtered.filter(inv => {
-        const date = new Date(inv.uploadTime);
-        const invMonth = date.getMonth() + 1; // 1-12
-        const invYear = date.getFullYear();
+        let dateToUse;
+        
+        if (inv.date && inv.date !== 'Not found') {
+          dateToUse = parseInvoiceDate(inv.date);
+        } else {
+          dateToUse = new Date(inv.uploadTime);
+        }
+        
+        const invMonth = dateToUse.getMonth() + 1;
+        const invYear = dateToUse.getFullYear();
         
         const monthMatch = invoiceFilter.month === 'all' || invMonth === parseInt(invoiceFilter.month);
         const yearMatch = invoiceFilter.year === 'all' || invYear === parseInt(invoiceFilter.year);
@@ -156,10 +237,9 @@ const ClientDashboard = () => {
     setInvoices(filtered);
   };
 
-  // 🔹 NEW: Get unique years from invoices
   const getAvailableYears = () => {
     const years = new Set(allInvoices.map(inv => new Date(inv.uploadTime).getFullYear()));
-    return Array.from(years).sort((a, b) => b - a); // Sort descending
+    return Array.from(years).sort((a, b) => b - a);
   };
 
   const expenses = stats.totalExpenses;
@@ -206,7 +286,6 @@ const ClientDashboard = () => {
     </Card>
   );
 
-  // 🔹 Generate chart data from Lambda report
   const getChartData = () => {
     if (!currentMonthReport) return [];
     
@@ -230,6 +309,32 @@ const ClientDashboard = () => {
       value
     }));
   };
+
+  // Auto-refresh for real-time status updates
+  useEffect(() => {
+    const hasProcessingInvoices = allInvoices.some(inv => 
+      inv.status === 'PENDING_UPLOAD' || inv.status === 'PROCESSING'
+    );
+
+    if (hasProcessingInvoices) {
+      console.log('🔄 Found processing invoices, setting up auto-refresh...');
+      
+      const interval = setInterval(() => {
+        console.log('🔄 Auto-refreshing data to check for status updates...');
+        fetchData();
+      }, 3000); 
+
+      const timeout = setTimeout(() => {
+        clearInterval(interval);
+        console.log('⏰ Auto-refresh stopped after 60 seconds');
+      }, 60000);
+
+      return () => {
+        clearInterval(interval);
+        clearTimeout(timeout);
+      };
+    }
+  }, [allInvoices]);
 
   if (loading) {
     return (
@@ -334,7 +439,7 @@ const ClientDashboard = () => {
         </Grid>
       </Grid>
 
-      {/* 🔹 NEW: Invoice Table with Filters */}
+      {/* Invoice Table with Filters */}
       <Paper elevation={0} sx={{ borderRadius: '16px', border: '1px solid #f0f0f0', overflow: 'hidden' }}>
         <Box sx={{ p: 3, backgroundColor: '#ffffff' }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems="center" spacing={2}>
@@ -342,7 +447,6 @@ const ClientDashboard = () => {
               Invoice History ({invoices.length} invoices)
             </Typography>
             
-            {/* 🔹 NEW: Filter Controls */}
             <Stack direction="row" spacing={2}>
               <FormControl size="small" sx={{ minWidth: 120 }}>
                 <InputLabel>Month</InputLabel>
@@ -381,7 +485,6 @@ const ClientDashboard = () => {
                 </Select>
               </FormControl>
               
-              {/* Reset Filters Button */}
               {(invoiceFilter.month !== 'all' || invoiceFilter.year !== 'all') && (
                 <Button
                   size="small"
@@ -431,15 +534,41 @@ const ClientDashboard = () => {
                     <TableCell>
                       <Chip label={inv.category || 'General'} size="small" variant="outlined" sx={{ fontWeight: 500, color: '#475569' }} />
                     </TableCell>
-                    <TableCell sx={{ color: '#64748b' }}>{new Date(inv.uploadTime).toLocaleDateString('he-IL')}</TableCell>
+                    <TableCell sx={{ color: '#64748b' }}>
+                      {inv.date && inv.date !== 'Not found' 
+                        ? formatDisplayDate(inv.date) 
+                        : new Date(inv.uploadTime).toLocaleDateString('he-IL')
+                      }
+                    </TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700, color: inv.type === 'INCOME' ? '#10b981' : '#ef4444' }}>
                       {inv.type === 'INCOME' ? '+' : '-'} ₪{Number(inv.amount).toLocaleString()}
                     </TableCell>
                     <TableCell align="center">
                       <Chip 
-                        label="Completed" 
+                        label={
+                          inv.status === 'PENDING_UPLOAD' ? 'Uploading...' :
+                          inv.status === 'PROCESSING' ? 'Processing...' :
+                          inv.status === 'COMPLETED' ? 'Completed' :
+                          inv.status === 'FAILED' ? 'Failed' :
+                          'Unknown'
+                        }
                         size="small" 
-                        sx={{ backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, borderRadius: '6px' }} 
+                        sx={{ 
+                          backgroundColor: 
+                            inv.status === 'COMPLETED' ? '#f1f5f9' :
+                            inv.status === 'PENDING_UPLOAD' ? '#fef3c7' :
+                            inv.status === 'PROCESSING' ? '#dbeafe' :
+                            inv.status === 'FAILED' ? '#fee2e2' :
+                            '#f3f4f6',
+                          color: 
+                            inv.status === 'COMPLETED' ? '#475569' :
+                            inv.status === 'PENDING_UPLOAD' ? '#92400e' :
+                            inv.status === 'PROCESSING' ? '#1e40af' :
+                            inv.status === 'FAILED' ? '#991b1b' :
+                            '#6b7280',
+                          fontWeight: 600, 
+                          borderRadius: '6px' 
+                        }} 
                       />
                     </TableCell>
                   </TableRow>

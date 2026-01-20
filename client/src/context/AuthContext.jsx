@@ -13,46 +13,40 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Check if user is already logged in (on page refresh)
-  useEffect(() => {
-    const checkAuthState = async () => {
-      try {
-        setLoading(true);
+  const checkAuthState = async () => {
+    try {
+      setLoading(true);
+      const session = await fetchAuthSession();
+      
+      if (session.tokens) {
+        const payload = session.tokens.idToken.payload;
+        const groups = payload['cognito:groups'] || [];
         
-        const currentUser = await getCurrentUser();
-        const session = await fetchAuthSession();
-        
-        if (currentUser && session.tokens) {
-          const groups = session.tokens?.accessToken?.payload['cognito:groups'] || 
-                        session.tokens?.idToken?.payload['cognito:groups'] || [];
-          
-          console.log('✅ Session restored. Detected Groups:', groups);
-          
-          let role = 'CLIENT';
-          if (groups.includes('ADMIN')) {
-            role = 'ADMIN';
-          } else if (groups.includes('CPA')) {
-            role = 'CPA';
-          }
-          
-          console.log('🎯 Restored Role:', role);
-          
-          setUser(currentUser);
-          setUserRole(role);
-        } else {
-          console.log('ℹ️ No active session found');
-          setUser(null);
-          setUserRole(null);
-        }
-      } catch (err) {
-        console.log('ℹ️ User not authenticated');
+        const userData = {
+          userId: payload.sub,
+          username: payload.name || payload.email || 'User',
+          email: payload.email
+        };
+
+        let role = 'CLIENT';
+        if (groups.includes('ADMIN')) role = 'ADMIN';
+        else if (groups.includes('CPA')) role = 'CPA';
+
+        setUser(userData);
+        setUserRole(role);
+      } else {
         setUser(null);
         setUserRole(null);
-      } finally {
-        setLoading(false);
       }
-    };
+    } catch (err) {
+      setUser(null);
+      setUserRole(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     checkAuthState();
   }, []);
 
@@ -61,47 +55,33 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError(null);
 
-      const { isSignedIn, nextStep } = await signIn({
+      const { isSignedIn } = await signIn({
         username: email,
         password: password,
       });
 
-      if (nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
-        console.log('🔒 NEW_PASSWORD_REQUIRED detected, auto-completing...');
-      }
-
       if (isSignedIn) {
-        const currentUser = await getCurrentUser();
         const session = await fetchAuthSession();
+        const payload = session.tokens.idToken.payload;
+        const groups = payload['cognito:groups'] || [];
         
-        const groups = session.tokens?.accessToken?.payload['cognito:groups'] || 
-                      session.tokens?.idToken?.payload['cognito:groups'] || [];
-        
-        console.log('✅ Detected Groups:', groups);
-        
+        const userData = {
+          userId: payload.sub,
+          username: payload.name || payload.email || 'User',
+          email: payload.email
+        };
+
         let role = 'CLIENT';
-        if (groups.includes('ADMIN')) {
-          role = 'ADMIN';
-        } else if (groups.includes('CPA')) {
-          role = 'CPA';
-        }
-        
-        console.log('🎯 Final Role Assigned:', role);
-        
-        setUser(currentUser);
+        if (groups.includes('ADMIN')) role = 'ADMIN';
+        else if (groups.includes('CPA')) role = 'CPA';
+
+        setUser(userData);
         setUserRole(role);
       }
-
     } catch (err) {
-      console.error('❌ Login error:', err);
-      
       let errorMessage = 'Invalid email or password';
-      if (err.name === 'UserNotFoundException') {
-        errorMessage = 'User not found';
-      } else if (err.name === 'NotAuthorizedException') {
-        errorMessage = 'Incorrect username or password';
-      }
-      
+      if (err.name === 'UserNotFoundException') errorMessage = 'User not found';
+      else if (err.name === 'NotAuthorizedException') errorMessage = 'Incorrect username or password';
       setError(errorMessage);
       throw err;
     } finally {

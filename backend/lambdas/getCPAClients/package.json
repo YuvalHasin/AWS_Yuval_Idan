@@ -1,0 +1,11 @@
+{
+  "name": "get-cpa-clients",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Lambda function to fetch assigned clients for a specific CPA",
+  "main": "index.mjs",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.515.0",
+    "@aws-sdk/lib-dynamodb": "^3.515.0"
+  }
+}

@@ -5,39 +5,35 @@ const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
 
 export const handler = async (event) => {
-    // ✅ CRITICAL FIX: Handle CORS preflight OPTIONS request
-    if (event.httpMethod === 'OPTIONS') {
-        console.log('✅ Handling OPTIONS preflight request');
-        return {
-            statusCode: 200,
-            headers: {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token",
-                "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-                "Access-Control-Max-Age": "86400"
-            },
-            body: JSON.stringify({ message: "CORS preflight successful" })
-        };
-    }
+    const { userId, status } = JSON.parse(event.body);
 
-    try {
-        const { userId, status } = JSON.parse(event.body);
-
-        const params = {
-            TableName: "scanbook-users",
-            Key: { userId: userId },
-            UpdateExpression: "set #s = :val",
-            ExpressionAttributeNames: { "#s": "status" },
-            ExpressionAttributeValues: { ":val": status }
-        };
+    const params = {
+        TableName: "scanbook-users",
+        Key: { userId: userId },
+        UpdateExpression: "set #s = :val",
+        ExpressionAttributeNames: { "#s": "status" },
+        ExpressionAttributeValues: { ":val": status }
+    };
 
         await docClient.send(new UpdateCommand(params));
+        console.log(`Update successful for user: ${userId}`);
+        
         return {
             statusCode: 200,
-            headers: { "Access-Control-Allow-Origin": "*" },
-            body: JSON.stringify({ message: "Status updated successfully" })
+            headers: { 
+                "Access-Control-Allow-Origin": "*", // פותר בעיות CORS
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "OPTIONS,POST",
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ message: "User updated successfully", updatedFields: { status, role } })
         };
     } catch (err) {
-        return { statusCode: 500, body: JSON.stringify(err) };
+        console.error("DynamoDB Update Error:", err);
+        return {
+            statusCode: 500,
+            headers: { "Access-Control-Allow-Origin": "*" },
+            body: JSON.stringify({ error: "Internal Server Error", details: err.message })
+        };
     }
 };

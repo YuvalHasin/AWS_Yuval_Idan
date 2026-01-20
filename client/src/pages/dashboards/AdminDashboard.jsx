@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
+import { TextField } from '@mui/material';
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
 
 import {
   Box,
@@ -32,6 +34,7 @@ import BadgeIcon from '@mui/icons-material/Badge';
 const BASE_URL = "https://0wvwt8s2u8.execute-api.us-east-1.amazonaws.com/dev";
 const USERS_API_URL = `${BASE_URL}/users`;
 const UPDATE_STATUS_URL = `${BASE_URL}/update-status`;
+const ADD_USER_URL = `${BASE_URL}/add-user`;
 
 const AdminDashboard = () => {
   const [users, setUsers] = useState([]);
@@ -39,6 +42,17 @@ const AdminDashboard = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [editFormData, setEditFormData] = useState({ role: '', status: '' });
+
+  // משתנה לשליטה על פתיחת/סגירת החלון
+const [addDialogOpen, setAddDialogOpen] = useState(false);
+
+// משתנה לאחסון נתוני הטופס - שימי לב לשמות השדות שהלמדה מצפה להם
+const [newUserFormData, setNewUserFormData] = useState({ 
+  name: '', 
+  email: '', 
+  password: '', 
+  userType: 'CLIENT' 
+});
 
   // 1. משיכת נתונים ראשונית
   const fetchUsers = async () => {
@@ -53,7 +67,7 @@ const AdminDashboard = () => {
         id: user.userId, 
         name: user.name || 'Anonymous',
         email: user.email || 'N/A',
-        role: user.assignedCPA ? 'CLIENT' : (user.clientCount ? 'CPA' : 'ADMIN'),
+        role: user.userType || (user.assignedCPA ? 'CLIENT' : (user.clientCount ? 'CPA' : 'ADMIN')),
         status: user.status || 'ACTIVE',
       }));
 
@@ -68,6 +82,25 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  // פונקציה לשליחת הלקוח החדש ל-AWS
+ const handleAddUser = async () => {
+  try {
+    await axios.post(ADD_USER_URL, {
+      name: newUserFormData.name,
+      email: newUserFormData.email,
+      password: newUserFormData.password,
+      userType: newUserFormData.userType
+    });
+
+    setAddDialogOpen(false);
+    setNewUserFormData({ name: '', email: '', password: '', userType: 'CLIENT' });
+    await fetchUsers(); // זה מה שמוסיף את המשתמש לטבלה במסך
+    alert("המשתמש נוסף בהצלחה!");
+  } catch (error) {
+    alert(error.response?.data?.message || "שגיאה ברישום");
+  }
+};
 
   // 2. פונקציית עדכון סטטוס (Toggle)
   const handleToggleBan = async (user) => {
@@ -199,6 +232,16 @@ const AdminDashboard = () => {
         <Typography variant="body1" color="textSecondary">Manage system users and security settings</Typography>
       </Box>
 
+      <Button 
+        variant="contained" 
+        color="primary" 
+        startIcon={<PeopleIcon />} 
+        onClick={() => setAddDialogOpen(true)}
+        sx={{ mb: 2 }}
+      >
+        Add New User
+      </Button>
+
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={4}>
           <StatCard title="Total Users" value={users.length} icon={PeopleIcon} color="#3498db" />
@@ -219,6 +262,67 @@ const AdminDashboard = () => {
           <DataGrid rows={users} columns={columns} loading={loading} pageSizeOptions={[5, 10]} initialState={{ pagination: { paginationModel: { pageSize: 10 } } }} />
         </Box>
       </Card>
+
+       {/* Adding Dialog */}
+      <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle sx={{ fontWeight: 700 }}>Add New System User</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            {/* שדה שם מלא */}
+            <TextField 
+              label="Full Name" 
+              fullWidth 
+              variant="outlined"
+              value={newUserFormData.name} 
+              onChange={(e) => setNewUserFormData({...newUserFormData, name: e.target.value})} 
+            />
+            
+            {/* שדה אימייל - משמש כשם משתמש ב-Cognito */}
+            <TextField 
+              label="Email Address" 
+              fullWidth 
+              variant="outlined"
+              type="email"
+              value={newUserFormData.email} 
+              onChange={(e) => setNewUserFormData({...newUserFormData, email: e.target.value})} 
+            />
+
+            {/* שדה סיסמה - חובה עבור הלמדה החדשה */}
+            <TextField 
+              label="Password" 
+              fullWidth 
+              variant="outlined"
+              type="password"
+              value={newUserFormData.password} 
+              onChange={(e) => setNewUserFormData({...newUserFormData, password: e.target.value})} 
+              helperText="Password will be set as permanent in Cognito"
+            />
+
+            {/* בחירת תפקיד - תואם לשדה userType בלמדה */}
+            <FormControl fullWidth variant="outlined">
+              <FormLabel sx={{ mb: 1, fontSize: '0.875rem' }}>System Role (userType)</FormLabel>
+              <Select 
+                value={newUserFormData.userType} 
+                onChange={(e) => setNewUserFormData({...newUserFormData, userType: e.target.value})}
+              >
+                <MenuItem value="CLIENT">Client</MenuItem>
+                <MenuItem value="CPA">CPA</MenuItem>
+                <MenuItem value="ADMIN">Admin</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setAddDialogOpen(false)} color="inherit">Cancel</Button>
+          <Button 
+            variant="contained" 
+            onClick={handleAddUser}
+            disabled={!newUserFormData.name || !newUserFormData.email || !newUserFormData.password}
+          >
+            Create User
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} fullWidth maxWidth="xs">

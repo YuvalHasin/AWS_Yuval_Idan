@@ -1,0 +1,10 @@
+{
+  "name": "add-user",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Lambda function to add new users to DynamoDB",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.709.0",
+    "@aws-sdk/lib-dynamodb": "^3.709.0"
+  }
+}

@@ -170,5 +170,4 @@ const CPADashboard = () => {
     </Box>
   );
 };
-
 export default CPADashboard;

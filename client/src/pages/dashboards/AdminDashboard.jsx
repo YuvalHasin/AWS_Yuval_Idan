@@ -32,9 +32,9 @@ import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import BadgeIcon from '@mui/icons-material/Badge';
 
 const BASE_URL = "https://0wvwt8s2u8.execute-api.us-east-1.amazonaws.com/dev";
-const USERS_API_URL = `${BASE_URL}/users`;
-const UPDATE_STATUS_URL = `${BASE_URL}/update-status`;
-const ADD_USER_URL = `${BASE_URL}/add-user`;
+const USERS_API_URL =`${BASE_URL}/users`;
+const UPDATE_STATUS_URL =`${BASE_URL}/update-status`;
+const ADD_USER_URL =`${BASE_URL}/add-user`;
 
 const AdminDashboard = () => {
   const [users, setUsers] = useState([]);
@@ -104,13 +104,21 @@ const [newUserFormData, setNewUserFormData] = useState({
 
   // 2. פונקציית עדכון סטטוס (Toggle)
   const handleToggleBan = async (user) => {
+
+    console.log("Attempting to update user. Full object:", user);
+    console.log("The ID being sent is:", user.id);
+
     const newStatus = user.status === 'BANNED' ? 'ACTIVE' : 'BANNED';
     
     try {
       await axios.post(UPDATE_STATUS_URL, {
         userId: user.id,
         status: newStatus
-      });
+      }, {
+    headers: {
+        'Content-Type': 'application/json'
+    }
+});
 
       setUsers(prevUsers => prevUsers.map(u => 
         u.id === user.id ? { ...u, status: newStatus } : u
@@ -135,7 +143,11 @@ const [newUserFormData, setNewUserFormData] = useState({
       userId: selectedUser.id,
       role: editFormData.role,
       status: editFormData.status
-    });
+    }, {
+    headers: {
+        'Content-Type': 'application/json'
+    }
+});
 
     // רק אם הצליח בשרת - נעדכן את הטבלה שעל המסך
     setUsers(prevUsers => prevUsers.map(u => 
@@ -347,5 +359,4 @@ const [newUserFormData, setNewUserFormData] = useState({
     </Box>
   );
 };
-
 export default AdminDashboard;

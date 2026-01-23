@@ -4,11 +4,21 @@ import { DynamoDBDocumentClient, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 const docClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 export const handler = async (event) => {
-    // Header מינימלי חובה כדי שהדפדפן יציג את התשובה
-    const headers = { "Access-Control-Allow-Origin": "*" };
+    const headers = { 
+        "Access-Control-Allow-Origin": "*",
+        "Content-Type": "application/json"
+    };
 
     try {
         const { userId, status, role } = JSON.parse(event.body || "{}");
+
+        if (!userId || !status) {
+            return {
+                statusCode: 400,
+                headers,
+                body: JSON.stringify({ error: "userId and status are required" })
+            };
+        }
 
         const params = {
             TableName: "scanbook-users",
@@ -36,7 +46,7 @@ export const handler = async (event) => {
         return {
             statusCode: 500,
             headers,
-            body: JSON.stringify({ error: "Failed" })
+            body: JSON.stringify({ error: "Failed to update user", details: err.message })
         };
     }
 };

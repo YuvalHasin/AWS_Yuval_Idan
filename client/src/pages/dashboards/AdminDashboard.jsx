@@ -111,14 +111,11 @@ const [newUserFormData, setNewUserFormData] = useState({
     const newStatus = user.status === 'BANNED' ? 'ACTIVE' : 'BANNED';
     
     try {
+      // ✅ Just send the data - NO headers object
       await axios.post(UPDATE_STATUS_URL, {
         userId: user.id,
         status: newStatus
-      }, {
-    headers: {
-        'Content-Type': 'application/json'
-    }
-});
+      });
 
       setUsers(prevUsers => prevUsers.map(u => 
         u.id === user.id ? { ...u, status: newStatus } : u
@@ -138,16 +135,12 @@ const [newUserFormData, setNewUserFormData] = useState({
 
   const handleSaveUser = async () => {
   try {
-    // שליחת העדכון ל-AWS
+    // ✅ Just send the data - NO headers object
     await axios.post(UPDATE_STATUS_URL, {
       userId: selectedUser.id,
       role: editFormData.role,
       status: editFormData.status
-    }, {
-    headers: {
-        'Content-Type': 'application/json'
-    }
-});
+    });
 
     // רק אם הצליח בשרת - נעדכן את הטבלה שעל המסך
     setUsers(prevUsers => prevUsers.map(u => 

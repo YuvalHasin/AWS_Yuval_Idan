@@ -97,11 +97,11 @@ const getMenuItemsByRole = () => {
         icon: <FileUploadIcon sx={{ color: '#22c55e' }} />,
         path: '/upload',
       },
-      {
+      /*{
         label: 'Statistics',
         icon: <BarChartIcon sx={{ color: '#8b5cf6' }} />,
         path: '/statistics',
-      },
+      },*/
     ],
     CPA: [
       {
@@ -114,11 +114,11 @@ const getMenuItemsByRole = () => {
         icon: <PeopleIcon sx={{ color: '#f59e0b' }} />,
         path: '/clients',
       },
-      {
+      /*{
         label: 'Reports',
         icon: <AssignmentIcon sx={{ color: '#ec4899' }} />,
         path: '/reports',
-      },
+      },*/
     ],
     ADMIN: [
       {

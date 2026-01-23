@@ -130,7 +130,6 @@ const CPADashboard = () => {
     { title: 'Total Clients', value: clients.length, icon: PeopleIcon, color: '#3498db', bgColor: '#e3f2fd' },
     { title: 'Reports Pending', value: clients.filter(c => c.status === 'Pending').length, icon: WarningIcon, color: '#f59e0b', bgColor: '#fffbeb' },
     { title: 'Docs to Review', value: totalDocs, icon: AssessmentIcon, color: '#ef4444', bgColor: '#fef2f2' },
-    { title: '?', value: ``, icon: TrendingUpIcon, color: '#22c55e', bgColor: '#f0fdf4' },
   ];
 
   const StatCard = ({ title, value, icon: Icon, color, bgColor }) => (

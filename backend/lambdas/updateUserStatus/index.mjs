@@ -6,8 +6,19 @@ const docClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 export const handler = async (event) => {
     const headers = { 
         "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "OPTIONS,POST",
         "Content-Type": "application/json"
     };
+
+    // Handle CORS preflight request
+    if (event.httpMethod === "OPTIONS") {
+        return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ message: "CORS preflight OK" })
+        };
+    }
 
     try {
         const { userId, status, role } = JSON.parse(event.body || "{}");
